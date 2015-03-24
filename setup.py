@@ -12,7 +12,7 @@ with open(os.path.join(here, 'requirements.txt')) as f:
 with open(os.path.join(here, 'VERSION')) as f:
     version = f.read().strip()
 
-setup(name='unicore.hub',
+setup(name='unicore.comments',
       version=version,
       description='A commenting service for Universal Core',
       long_description=README,
