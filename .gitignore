@@ -1,0 +1,7 @@
+*.egg-info/
+/ve/
+*.pyc
+/dist/
+*.sqlite
+*.sublime-*
+.coverage
