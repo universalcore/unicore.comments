@@ -1,9 +1,13 @@
+import re
 import uuid
 
 import colander
 
 
 COMMENT_MAX_LENGTH = 3000
+CONTENT_TYPES = ('page', 'category')
+# ISO 639 3-letter code + ISO 3166-1 alpha-2
+LOCALE_CODE_RE = re.compile(r'^[a-z]{3}_[A-Z]{2}$')
 
 
 def uuid_validator(node, value):
@@ -11,26 +15,34 @@ def uuid_validator(node, value):
         uuid.UUID(value)
     except ValueError:
         raise colander.Invalid(
-            '%r is not a valid hexadecimal UUID' % (value, ))
+            node, '%r is not a valid hexadecimal UUID' % (value, ))
 
 
 def ip_address_validator(node, value):
-    err_msg = '%r is not a valid IP address' % (value, )
+    try:
+        assert len(value) <= 15
 
-    if len(value) > 15:
-        raise colander.Invalid(err_msg)
+        parts = value.split('.')
+        assert len(parts) == 4
 
-    parts = value.split('.')
-    if len(parts) != 4:
-        raise colander.Invalid(err_msg)
+        for part in parts:
+            try:
+                num = int(part)
+                assert 0 <= num <= 255
+            except ValueError:
+                raise AssertionError
 
-    for part in parts:
-        try:
-            num = int(part)
-            if num < 0 or num > 255:
-                raise colander.Invalid(err_msg)
-        except ValueError:
-            raise colander.Invalid(err_msg)
+    except AssertionError:
+        raise colander.Invalid(
+            node, '%r is not a valid IP address' % (value, ))
+
+
+def locale_validator(node, value):
+    # TODO: check against list of codes
+    if not LOCALE_CODE_RE.match(value):
+        raise colander.Invalid(
+            node, '%r is not a valid locale' % (value, ))
 
 
 comment_validator = colander.Length(min=1, max=COMMENT_MAX_LENGTH)
+content_type_validator = colander.OneOf(CONTENT_TYPES)
