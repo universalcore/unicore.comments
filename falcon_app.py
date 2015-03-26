@@ -31,7 +31,7 @@ class Comments(object):
 
 class Flags(object):
 
-    def on_put(self, request, response, uuid):
+    def on_post(self, request, response, uuid):
         # TODO: increment the flag
         response.body = json.dumps({'uuid': uuid})
 

@@ -30,7 +30,7 @@ def list_comments():
 
 
 # NOTE: bottle doesn't have a patch method
-@app.put('/comments/<uuid:re:[a-z0-9]{32}>/flag/')
+@app.post('/comments/<uuid:re:[a-z0-9]{32}>/flag/')
 def flag_comment(uuid):
     # TODO: increment the flag
     # Bottle automatically converts this to JSON

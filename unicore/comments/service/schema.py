@@ -41,3 +41,14 @@ class Comment(colander.MappingSchema):
         colander.String(),
         validator=vlds.ip_address_validator,
         missing=None)
+
+
+class Flag(colander.MappingSchema):
+    comment_uuid = colander.SchemaNode(
+        colander.String(),
+        validator=vlds.uuid_validator)
+    user_uuid = colander.SchemaNode(
+        colander.String(),
+        validator=vlds.uuid_validator)
+    submit_datetime = colander.SchemaNode(
+        colander.DateTime())

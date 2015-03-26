@@ -34,7 +34,7 @@ def list_comments(request):
     pass
 
 
-@app.route('/comments/<uuid>/flag/', methods=['PUT'])
+@app.route('/comments/<uuid>/flag/', methods=['POST'])
 def flag_comment(request, uuid):
     # TODO: increment the flag
     return make_json_response(request, {'uuid': uuid})

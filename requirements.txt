@@ -2,3 +2,5 @@ colander>=1.0b1
 bottle>=0.12
 klein>=15.0.0
 falcon>=0.2
+SQLAlchemy>=0.9.9
+SQLAlchemy-Utils>=0.29.8
