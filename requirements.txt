@@ -1,2 +1,3 @@
 colander>=1.0b1
 bottle>=0.12
+klein>=15.0.0

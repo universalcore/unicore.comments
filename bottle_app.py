@@ -1,8 +1,10 @@
-from bottle import Bottle, run, request, HTTPError
+import json
+
+from bottle import Bottle, run, request, HTTPError, response
 
 import colander
 
-from unicore.comment.service.schema import Comment as CommentSchema
+from unicore.comments.service.schema import Comment as CommentSchema
 
 
 app = Bottle()
@@ -15,7 +17,7 @@ The views
 
 @app.post('/comments/')
 def create_comment():
-    data = deserialize_or_raise(CommentSchema, request)
+    data = deserialize_or_raise(CommentSchema(), request)
     # TODO: save the comment
     return data
 
@@ -26,6 +28,7 @@ def list_comments():
     pass
 
 
+# NOTE: bottle doesn't have a patch method
 @app.put('/comments/<uuid:re:[a-z0-9]{32}>/flag/')
 def flag_comment(uuid):
     # TODO: increment the flag
@@ -40,16 +43,16 @@ Error handling stuff
 
 def deserialize_or_raise(schema, req):
     try:
-        data = request.json
-        if request.json is None:
+        data = req.json
+        if req.json is None:
             raise ValueError
         return schema.deserialize(data)
 
     except colander.Invalid as e:
-        raise HTTPError(exception=e)
+        raise HTTPError(status=400, exception=e)
 
     except (TypeError, ValueError):
-        raise HTTPError(exception='Not valid JSON')
+        raise HTTPError(status=400, exception='Not valid JSON')
 
 
 @app.error(400)
@@ -61,8 +64,9 @@ def bad_request(error):
         error_dict['error_dict'] = exc.asdict()
     else:
         error_dict['error_message'] = unicode(exc)
-    # Bottle automatically converts this to JSON
-    return error_dict
+
+    response.content_type = 'application/json'
+    return json.dumps(error_dict)
 
 
 '''
