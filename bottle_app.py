@@ -19,6 +19,7 @@ The views
 def create_comment():
     data = deserialize_or_raise(CommentSchema(), request)
     # TODO: save the comment
+    response.status = 201
     return data
 
 

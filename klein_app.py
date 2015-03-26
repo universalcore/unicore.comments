@@ -24,6 +24,7 @@ def make_json_response(request, data):
 def create_comment(request):
     data = deserialize_or_raise(CommentSchema(), request)
     # TODO: save the comment
+    request.setResponseCode(201)
     return make_json_response(request, data)
 
 
