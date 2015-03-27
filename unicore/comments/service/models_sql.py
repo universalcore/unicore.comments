@@ -82,13 +82,22 @@ class Comment(Base, UUIDMixin, DictMixin):
 
 class Flag(Base, DictMixin):
     __tablename__ = 'flags'
-    __table_args__ = (Index('flag_submit_datetime_index', 'submit_datetime'), )
+    __table_args__ = (Index('flag_submit_datetime_index', 'submit_datetime'),
+                      Index('flag_app_index', 'app_uuid'))
 
     comment_uuid = Column(
         UUIDType(binary=False), ForeignKey('comments.uuid'), primary_key=True)
     user_uuid = Column(
         UUIDType(binary=False), primary_key=True)
+    # same as Comment.app_uuid (for partitioning)
+    app_uuid = Column(UUIDType(binary=False), nullable=False)
     submit_datetime = Column(DateTime, nullable=False)
+
+    @classmethod
+    def from_dict(cls, session, data):
+        obj = super(Flag, cls).from_dict(session, data)
+        obj.app_uuid = obj.comment.app_uuid
+        return obj
 
 
 Base.metadata.create_all(engine)
