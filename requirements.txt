@@ -1,0 +1,6 @@
+alchimia>=0.4
+colander>=1.0b1
+klein>=15.0.0
+psycopg2>=2.6
+SQLAlchemy>=0.9.9
+SQLAlchemy-Utils>=0.29.8
