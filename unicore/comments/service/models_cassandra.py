@@ -12,9 +12,10 @@ setup(hosts=['localhost'], default_keyspace='unicore_comments')
 class DictMixin(object):
 
     @classmethod
-    def from_dict(cls, session, data):
+    def from_dict(cls, data):
         obj = cls()
-        obj.update(data)
+        for key, value in data.iteritems():
+            setattr(obj, key, value)
         return obj
 
     def to_dict(self):
@@ -49,12 +50,19 @@ class Comment(Model, DictMixin):
     ip_address = columns.Text(max_length=15)
     flag_count = columns.Integer(default=0)
 
+    @classmethod
+    def from_dict(cls, data):
+        obj = super(Comment, cls).from_dict(data)
+        obj.uuid = columns.TimeUUID.from_datetime(obj.submit_datetime)
+        return obj
+
 
 class Flag(Model, DictMixin):
     __table_name__ = 'flags'
     __keyspace__ = 'unicore_comments'
 
     app_uuid = columns.UUID(primary_key=True)  # parition key
+    content_uuid = columns.UUID(primary_key=True)  # clustering key
     comment_uuid = columns.UUID(primary_key=True)  # clustering key
     user_uuid = columns.UUID(primary_key=True)  # clustering key
     submit_datetime = columns.DateTime(required=True)
