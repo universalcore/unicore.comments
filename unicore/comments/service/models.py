@@ -9,6 +9,7 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 
 COMMENT_MAX_LENGTH = 3000
 COMMENT_TABLE_NAME = 'comments'
+COMMENT_CONTENT_TYPES = ('page', 'category')
 COMMENT_MODERATION_STATES = (
     (u'visible', u'Visible'),
     (u'removed_by_moderator', u'Removed by moderator'),

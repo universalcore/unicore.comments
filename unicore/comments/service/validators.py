@@ -3,9 +3,12 @@ import uuid
 
 import colander
 
+from unicore.comments.service.models import (
+    COMMENT_MAX_LENGTH,
+    COMMENT_CONTENT_TYPES,
+    COMMENT_MODERATION_STATES)
 
-COMMENT_MAX_LENGTH = 3000
-CONTENT_TYPES = ('page', 'category')
+
 # ISO 639 3-letter code + ISO 3166-1 alpha-2
 LOCALE_CODE_RE = re.compile(r'^[a-z]{3}_[A-Z]{2}$')
 
@@ -45,4 +48,7 @@ def locale_validator(node, value):
 
 
 comment_validator = colander.Length(min=1, max=COMMENT_MAX_LENGTH)
-content_type_validator = colander.OneOf(CONTENT_TYPES)
+content_type_validator = colander.OneOf(COMMENT_CONTENT_TYPES)
+content_url_validator = colander.url
+moderation_state_validator = colander.OneOf(
+    [t[0] for t in COMMENT_MODERATION_STATES])

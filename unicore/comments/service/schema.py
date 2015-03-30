@@ -7,6 +7,11 @@ class Comment(colander.MappingSchema):
     '''
     Identifiers
     '''
+    # uuid
+    uuid = colander.SchemaNode(
+        colander.String(),
+        validator=vlds.uuid_validator,
+        missing=colander.null)
     app_uuid = colander.SchemaNode(
         colander.String(),
         validator=vlds.uuid_validator)
@@ -31,9 +36,22 @@ class Comment(colander.MappingSchema):
         validator=vlds.content_type_validator)
     content_title = colander.SchemaNode(
         colander.String())
+    content_url = colander.SchemaNode(
+        colander.String(),
+        validator=vlds.content_url_validator)
     locale = colander.SchemaNode(
         colander.String(),
         validator=vlds.locale_validator)
+    flag_count = colander.SchemaNode(
+        colander.Integer(),
+        missing=colander.null)
+    is_removed = colander.SchemaNode(
+        colander.Boolean(),
+        missing=colander.null)
+    moderation_state = colander.SchemaNode(
+        colander.String(),
+        validator=vlds.moderation_state_validator,
+        missing=colander.null)
     '''
     Not required data
     '''
@@ -48,6 +66,9 @@ class Flag(colander.MappingSchema):
         colander.String(),
         validator=vlds.uuid_validator)
     user_uuid = colander.SchemaNode(
+        colander.String(),
+        validator=vlds.uuid_validator)
+    app_uuid = colander.SchemaNode(
         colander.String(),
         validator=vlds.uuid_validator)
     submit_datetime = colander.SchemaNode(
