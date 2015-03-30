@@ -32,7 +32,7 @@ class RowObjectMixin(object):
     The `get` and `set` methods update the underlying row data. Altered
     data can be saved by calling `update`.
 
-    TODO: use deferreds'''
+    '''
 
     def __init__(self, connection, row):
         self.connection = connection
