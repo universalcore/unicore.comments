@@ -1,5 +1,3 @@
-import yaml
-
 from confmodel import Config as ConfigBase
 from confmodel.fields import ConfigText
 
