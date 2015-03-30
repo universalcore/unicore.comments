@@ -81,7 +81,7 @@ class ModelTests(object):
             if key.endswith('uuid'):
                 del new_data[key]
             elif isinstance(new_data[key], basestring):
-                new_data[key] = 'new'
+                new_data[key] = u'new'
             elif isinstance(new_data[key], datetime):
                 new_data[key] = datetime.utcnow() + timedelta(hours=1)
 
