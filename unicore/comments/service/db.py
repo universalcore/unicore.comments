@@ -1,10 +1,8 @@
 from alchimia import TWISTED_STRATEGY
 from sqlalchemy import create_engine
 
-from unicore.comments.service.config import config
 
-
-def get_engine(reactor=None):
+def get_engine(config, reactor=None):
     if reactor is None:
         return create_engine(config.database_url)
 

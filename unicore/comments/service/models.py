@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 from sqlalchemy import (Column, Integer, Unicode, MetaData, Table, Index,
-                        DateTime, ForeignKey, Boolean)
+                        DateTime, ForeignKey, Boolean, and_)
 from sqlalchemy.inspection import inspect
 from sqlalchemy_utils import UUIDType, URLType
 
@@ -20,10 +20,6 @@ FLAG_TABLE_NAME = 'flags'
 metadata = MetaData()
 
 
-class QueryError(Exception):
-    pass
-
-
 class RowObjectMixin(object):
     ''' This class simplifies dealing with individual table rows.
     An instance can be constructed using any dictionary-like object,
@@ -33,7 +29,9 @@ class RowObjectMixin(object):
     a new row, update an existing row or select a row by primary key.
 
     The `get` and `set` methods update the underlying row data. Altered
-    data can be saved by calling `update`.'''
+    data can be saved by calling `update`.
+
+    TODO: use deferreds'''
 
     def __init__(self, connection, row):
         self.connection = connection
@@ -41,16 +39,18 @@ class RowObjectMixin(object):
 
     @classmethod
     def _pk_expression(cls, data):
-        return [(c == data[c.name])
-                for c in inspect(cls.__table__).primary_key]
+        expressions = [
+            (c == data[c.name])
+            for c in inspect(cls.__table__).primary_key]
+        return and_(*expressions)
 
     @property
     def pk_expression(self):
         return self.__class__._pk_expression(self.row_dict)
 
     def to_dict(self):
-        return dict((c.name, self.row_dict[c.name])
-                    for c in self.__table__.c)
+        return dict(
+            (c.name, self.row_dict[c.name]) for c in self.__table__.c)
 
     def get(self, attr):
         if attr not in self.__table__.c:
@@ -82,20 +82,21 @@ class RowObjectMixin(object):
         query = self.__table__ \
             .update() \
             .values(**data_without_pk) \
-            .where(*self.pk_expression)
+            .where(self.pk_expression)
         result = self.connection.execute(query)
         return result.rowcount
 
     @classmethod
-    def get_by_pk(cls, connection, **pk_fields):
+    def get_by_pk(cls, connection, pk_expression=None, **pk_fields):
         try:
-            pk_expression = cls._pk_expression(pk_fields)
+            if pk_expression is None:
+                pk_expression = cls._pk_expression(pk_fields)
         except KeyError:
-            raise QueryError('All primary keys need to be provided')
+            raise KeyError('All primary keys need to be provided')
 
         query = cls.__table__ \
             .select() \
-            .where(*pk_expression)
+            .where(pk_expression)
         result = connection.execute(query).first()
         if result is not None:
             result = cls(connection, result)
