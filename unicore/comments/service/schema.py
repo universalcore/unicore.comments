@@ -7,11 +7,10 @@ class Comment(colander.MappingSchema):
     '''
     Identifiers
     '''
-    # uuid
     uuid = colander.SchemaNode(
         colander.String(),
-        validator=vlds.uuid_validator,
-        missing=colander.null)
+        validator=vlds.comment_uuid_validator,
+        missing=colander.drop)
     app_uuid = colander.SchemaNode(
         colander.String(),
         validator=vlds.uuid_validator)
@@ -42,23 +41,32 @@ class Comment(colander.MappingSchema):
     locale = colander.SchemaNode(
         colander.String(),
         validator=vlds.locale_validator)
-    flag_count = colander.SchemaNode(
-        colander.Integer(),
-        missing=colander.null)
     is_removed = colander.SchemaNode(
         colander.Boolean(),
-        missing=colander.null)
+        missing=colander.drop)
     moderation_state = colander.SchemaNode(
         colander.String(),
         validator=vlds.moderation_state_validator,
-        missing=colander.null)
+        missing=colander.drop)
     '''
     Not required data
     '''
     ip_address = colander.SchemaNode(
         colander.String(),
         validator=vlds.ip_address_validator,
-        missing=None)
+        missing=colander.drop,
+        default='None')
+
+    def __init__(self, *args, **kwargs):
+        super(Comment, self).__init__(*args, **kwargs)
+
+        # Add flag_count only if include_all is True.
+        # Flag count should only be updated via the Flag API.
+        if kwargs.get('include_all', False):
+            self.add(colander.SchemaNode(
+                colander.Integer(),
+                name='flag_count',
+                missing=colander.drop))
 
 
 class Flag(colander.MappingSchema):

@@ -21,6 +21,15 @@ def uuid_validator(node, value):
             node, '%r is not a valid hexadecimal UUID' % (value, ))
 
 
+@colander.deferred
+def comment_uuid_validator(node, kw):
+    # ensure the provided uuid matches the uuid in the data
+    comment_uuid = kw.get('comment_uuid', None)
+    if comment_uuid is None:
+        return uuid_validator
+    return colander.All(colander.OneOf([comment_uuid]), uuid_validator)
+
+
 def ip_address_validator(node, value):
     try:
         assert len(value) <= 15
