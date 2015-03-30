@@ -1,11 +1,14 @@
 import os
-from unittest import TestCase
 
 from alembic.config import Config as AlembicConfig
-from alembic import command as alembic_command
+from sqlalchemy.schema import CreateTable
+from twisted.trial.unittest import TestCase
+
+from aludel.tests.doubles import FakeReactorThreads
 
 from unicore.comments.service.config import Config
 from unicore.comments.service import db
+from unicore.comments.service.models import Comment, Flag
 
 
 test_dir = os.path.dirname(__file__)
@@ -31,23 +34,16 @@ def mk_alembic_config(app_config):
 
 class BaseTestCase(TestCase):
 
-    @classmethod
-    def setUpClass(cls):
-        cls.config = mk_config()
-        cls.alembic_config = mk_alembic_config(cls.config)
-        # migrate the database
-        alembic_command.upgrade(cls.alembic_config, 'head')
-
-        cls.engine = db.get_engine(cls.config)
-        cls.connection = cls.engine.connect()
-
-    @classmethod
-    def tearDownClass(cls):
-        alembic_command.downgrade(cls.alembic_config, 'base')
-        cls.connection.close()
-
     def setUp(self):
-        self.transaction = self.__class__.connection.begin()
+        self.config = mk_config()
+        self.engine = db.get_engine(self.config, FakeReactorThreads())
+        self.connection = self.successResultOf(self.engine.connect())
+        self.transaction = self.successResultOf(self.connection.begin())
+
+        for model in (Comment, Flag):
+            self.successResultOf(
+                self.connection.execute(CreateTable(model.__table__)))
 
     def tearDown(self):
-        self.transaction.rollback()
+        self.successResultOf(self.transaction.rollback())
+        self.successResultOf(self.connection.close())

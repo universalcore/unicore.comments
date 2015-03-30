@@ -1,9 +1,12 @@
 from datetime import datetime, timedelta
+from unittest import TestCase
 
+from alembic import command as alembic_command
 from sqlalchemy.sql.expression import exists
 from sqlalchemy.inspection import inspect
 
-from unicore.comments.service.tests import BaseTestCase
+from unicore.comments.service.tests import (BaseTestCase, mk_alembic_config,
+                                            mk_config)
 from unicore.comments.service.models import Comment, Flag
 
 
@@ -12,17 +15,17 @@ comment_data = {
     'user_uuid': '2923280ee1904478bfcf7a46f26f443b',
     'content_uuid': 'f587b74816bb425ab043f1cf30de7abe',
     'app_uuid': 'bbc0035128b34ed48bdacab1799087c5',
-    'comment': 'this is a comment',
-    'user_name': 'foo',
+    'comment': u'this is a comment',
+    'user_name': u'foo',
     'submit_datetime': datetime.utcnow(),
-    'content_type': 'page',
-    'content_title': 'I Am A Page',
-    'content_url': 'http://example.com/page/',
-    'locale': 'eng_ZA',
+    'content_type': u'page',
+    'content_title': u'I Am A Page',
+    'content_url': u'http://example.com/page/',
+    'locale': u'eng_ZA',
     'flag_count': 0,
     'is_removed': False,
     'moderation_state': u'visible',
-    'ip_address': '192.168.1.1'
+    'ip_address': u'192.168.1.1'
 }
 flag_data = {
     'comment_uuid': 'd269f09c4672400da4250342d9d7e1e4',
@@ -30,6 +33,14 @@ flag_data = {
     'app_uuid': 'bbc0035128b34ed48bdacab1799087c5',
     'submit_datetime': datetime.utcnow()
 }
+
+
+class MigrationTestCase(TestCase):
+
+    def test_migrations(self):
+        alembic_config = mk_alembic_config(mk_config())
+        alembic_command.upgrade(alembic_config, 'head')
+        alembic_command.downgrade(alembic_config, 'base')
 
 
 class ModelTests(object):
@@ -45,7 +56,7 @@ class ModelTests(object):
                 columns_with_defaults.append(column)
 
         obj = self.model_class(self.connection, data_no_defaults)
-        result = obj.insert()
+        result = self.successResultOf(obj.insert())
 
         # check for existence in database
         self.assertEqual(result, 1)
@@ -53,7 +64,9 @@ class ModelTests(object):
             .select(
                 exists().where(obj.pk_expression)
             )
-        self.assertTrue(self.connection.execute(exists_query).scalar())
+        result = self.successResultOf(self.connection.execute(exists_query))
+        result = self.successResultOf(result.scalar())
+        self.assertTrue(result)
 
         # check that default values are assigned
         for column in columns_with_defaults:
@@ -61,7 +74,7 @@ class ModelTests(object):
 
     def test_update(self):
         obj = self.model_class(self.connection, self.instance_data)
-        obj.insert()
+        self.successResultOf(obj.insert())
 
         new_data = self.instance_data.copy()
         for key in new_data.keys():
@@ -74,31 +87,34 @@ class ModelTests(object):
 
         for key, value in new_data.iteritems():
             obj.set(key, value)
-        result = obj.update()
+        result = self.successResultOf(obj.update())
 
         # check that both obj and database contain new data
         self.assertEqual(result, 1)
-        obj_from_db = self.model_class.get_by_pk(
-            self.connection, pk_expression=obj.pk_expression)
+        obj_from_db = self.successResultOf(self.model_class.get_by_pk(
+            self.connection, pk_expression=obj.pk_expression))
         for instance in (obj, obj_from_db):
             for key, value in new_data.iteritems():
                 self.assertEqual(instance.get(key), value)
 
     def test_get_by_pk(self):
         obj = self.model_class(self.connection, self.instance_data)
-        obj.insert()
+        self.successResultOf(obj.insert())
 
         # check that primary key lookup returns a result
         pk_fields = dict(
             (c.name, obj.get(c.name))
             for c in inspect(self.model_class.__table__).primary_key)
-        obj_from_db = self.model_class.get_by_pk(self.connection, **pk_fields)
+        obj_from_db = self.successResultOf(
+            self.model_class.get_by_pk(self.connection, **pk_fields))
         self.assertTrue(obj_from_db)
 
         # check that error is raised if a primary key is missing
         del pk_fields[pk_fields.keys()[0]]
+        failure = self.failureResultOf(
+            self.model_class.get_by_pk(self.connection, **pk_fields))
         with self.assertRaisesRegexp(KeyError, 'keys need to be provided'):
-            self.model_class.get_by_pk(self.connection, **pk_fields)
+            failure.raiseException()
 
     def test_get_set(self):
         obj = self.model_class(self.connection, {})
@@ -127,8 +143,7 @@ class FlagTestCase(BaseTestCase, ModelTests):
     model_class = Flag
     instance_data = flag_data
 
-    @classmethod
-    def setUpClass(cls):
-        super(FlagTestCase, cls).setUpClass()
-        cls.comment = Comment(cls.connection, comment_data)
-        cls.comment.insert()
+    def setUp(self):
+        super(FlagTestCase, self).setUp()
+        self.comment = Comment(self.connection, comment_data)
+        self.successResultOf(self.comment.insert())

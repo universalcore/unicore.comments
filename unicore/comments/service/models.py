@@ -4,6 +4,7 @@ from sqlalchemy import (Column, Integer, Unicode, MetaData, Table, Index,
                         DateTime, ForeignKey, Boolean, and_)
 from sqlalchemy.inspection import inspect
 from sqlalchemy_utils import UUIDType, URLType
+from twisted.internet.defer import inlineCallbacks, returnValue
 
 
 COMMENT_MAX_LENGTH = 3000
@@ -64,16 +65,20 @@ class RowObjectMixin(object):
 
         self.row_dict[attr] = value
 
+    @inlineCallbacks
     def insert(self):
         query = self.__table__ \
             .insert() \
-            .values(self.row_dict)
-        result = self.connection.execute(query)
+            .values(self.row_dict) \
+            .returning(*self.__table__.c)
+        result = yield self.connection.execute(query)
         # update data with auto-generated defaults
         if result.rowcount:
-            self.row_dict = result.last_inserted_params().copy()
-        return result.rowcount
+            returned = yield result.fetchone()
+            self.row_dict = dict((k, v) for k, v in returned.items())
+        returnValue(result.rowcount)
 
+    @inlineCallbacks
     def update(self):
         data_without_pk = self.row_dict.copy()
         for c in inspect(self.__table__).primary_key:
@@ -83,10 +88,11 @@ class RowObjectMixin(object):
             .update() \
             .values(**data_without_pk) \
             .where(self.pk_expression)
-        result = self.connection.execute(query)
-        return result.rowcount
+        result = yield self.connection.execute(query)
+        returnValue(result.rowcount)
 
     @classmethod
+    @inlineCallbacks
     def get_by_pk(cls, connection, pk_expression=None, **pk_fields):
         try:
             if pk_expression is None:
@@ -97,10 +103,11 @@ class RowObjectMixin(object):
         query = cls.__table__ \
             .select() \
             .where(pk_expression)
-        result = connection.execute(query).first()
+        result = yield connection.execute(query)
+        result = yield result.first()
         if result is not None:
             result = cls(connection, result)
-        return result
+        returnValue(result)
 
 
 class Comment(RowObjectMixin):
