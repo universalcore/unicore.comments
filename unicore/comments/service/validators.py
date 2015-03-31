@@ -50,7 +50,6 @@ def ip_address_validator(node, value):
 
 
 def locale_validator(node, value):
-    # TODO: check against list of codes
     if not LOCALE_CODE_RE.match(value):
         raise colander.Invalid(
             node, '%r is not a valid locale' % (value, ))
