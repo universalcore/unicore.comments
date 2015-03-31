@@ -1,9 +1,12 @@
+import uuid
 from datetime import datetime
 from unittest import TestCase
 
 import pytz
 import colander
 
+from unicore.comments.service.models import (
+    COMMENT_MAX_LENGTH, COMMENT_CONTENT_TYPES, COMMENT_MODERATION_STATES)
 from unicore.comments.service.schema import Comment, Flag
 from unicore.comments.service.tests.test_models import (
     comment_data as comment_model_data, flag_data as flag_model_data)
@@ -116,4 +119,66 @@ class FlagTestCase(TestCase):
 
 
 class ValidatorTestCase(TestCase):
-    pass
+    schema_flag = Flag().bind()
+    schema_comment = Comment().bind()
+
+    def setUp(self):
+        self.data_flag = flag_data.copy()
+        self.data_comment = comment_data.copy()
+
+    def test_uuid_validator(self):
+        self.data_flag['app_uuid'] = 'notauuid'
+        self.assertRaisesRegexp(
+            colander.Invalid, "'app_uuid'",
+            self.schema_flag.deserialize, self.data_flag)
+
+    def test_comment_uuid_validator(self):
+        comment_uuid = self.data_flag['comment_uuid']
+        schema = Flag().bind(comment_uuid=comment_uuid)
+        self.assertEqual(
+            schema.deserialize(self.data_flag)['comment_uuid'],
+            comment_uuid)
+
+        other_uuid = uuid.uuid4().hex
+        schema = Flag().bind(comment_uuid=other_uuid)
+        self.assertRaisesRegexp(
+            colander.Invalid, "is not one of %s" % other_uuid,
+            schema.deserialize, self.data_flag)
+
+    def test_ip_address_validator(self):
+        self.data_comment['ip_address'] = 'notanipaddress'
+        self.assertRaisesRegexp(
+            colander.Invalid, "'ip_address'",
+            self.schema_comment.deserialize, self.data_comment)
+
+    def test_locale_validator(self):
+        self.data_comment['locale'] = 'notalocale'
+        self.assertRaisesRegexp(
+            colander.Invalid, "'locale'",
+            self.schema_comment.deserialize, self.data_comment)
+
+    def test_comment_validator(self):
+        for val in ('', 'a' * (COMMENT_MAX_LENGTH + 1)):
+            self.data_comment['comment'] = val
+            self.assertRaisesRegexp(
+                colander.Invalid, "'comment'",
+                self.schema_comment.deserialize, self.data_comment)
+
+    def test_content_type_validator(self):
+        self.data_comment['content_type'] = 'notacontenttype'
+        self.assertRaisesRegexp(
+            colander.Invalid, 'is not one of page, category',
+            self.schema_comment.deserialize, self.data_comment)
+
+    def test_content_url_validator(self):
+        self.data_comment['content_url'] = 'notacontenturl'
+        self.assertRaisesRegexp(
+            colander.Invalid, "'content_url'",
+            self.schema_comment.deserialize, self.data_comment)
+
+    def test_moderation_state_validator(self):
+        self.data_comment['moderation_state'] = 'notamoderationstate'
+        states = ', '.join(map(lambda t: t[0], COMMENT_MODERATION_STATES))
+        self.assertRaisesRegexp(
+            colander.Invalid, 'is not one of %s' % states,
+            self.schema_comment.deserialize, self.data_comment)

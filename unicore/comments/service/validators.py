@@ -60,4 +60,4 @@ comment_validator = colander.Length(min=1, max=COMMENT_MAX_LENGTH)
 content_type_validator = colander.OneOf(COMMENT_CONTENT_TYPES)
 content_url_validator = colander.url
 moderation_state_validator = colander.OneOf(
-    [t[0] for t in COMMENT_MODERATION_STATES])
+    map(lambda t: t[0], COMMENT_MODERATION_STATES))
