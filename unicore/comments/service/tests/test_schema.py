@@ -1,6 +1,7 @@
 from datetime import datetime
 from unittest import TestCase
 
+import pytz
 import colander
 
 from unicore.comments.service.schema import Comment, Flag
@@ -12,10 +13,7 @@ def simple_serialize(data):
     for key in data.keys():
         value = data[key]
         if isinstance(value, bool):
-            if value:
-                data[key] = 'true'
-            else:
-                data[key] = 'false'
+            data[key] = 'true' if value else 'false'
         elif isinstance(value, int):
             data[key] = str(value)
         elif isinstance(value, datetime):
@@ -31,7 +29,6 @@ simple_serialize(flag_data)
 
 
 class CommentTestCase(TestCase):
-    maxDiff = None
 
     def test_deserialize(self):
         schema = Comment().bind()
@@ -81,7 +78,7 @@ class CommentTestCase(TestCase):
         # check that flag_count got serialized
         self.assertIn('flag_count', clean)
 
-        # check that missing fields are dropped
+        # check that missing/None fields are 'None'
         missing_and_none_data = comment_model_data.copy()
         del missing_and_none_data['ip_address']
         clean = schema.serialize(missing_and_none_data)
@@ -92,7 +89,30 @@ class CommentTestCase(TestCase):
 
 
 class FlagTestCase(TestCase):
-    pass
+
+    def test_deserialize(self):
+        schema = Flag().bind()
+        clean = schema.deserialize(flag_data)
+
+        self.assertEqual(
+            clean.pop('submit_datetime'),
+            flag_model_data['submit_datetime'].replace(tzinfo=pytz.UTC))
+        self.assertEqual(len(clean), len(flag_data) - 1)
+        self.assertDictContainsSubset(clean, flag_data)
+
+        # check that missing required fields raise an exception
+        # all flag fields are required
+        incomplete_data = {}
+        try:
+            schema.deserialize(incomplete_data)
+            self.fail('Expected colander.Invalid to be raised')
+        except colander.Invalid as e:
+            self.assertEqual(len(e.children), len(flag_data))
+
+    def test_serialize(self):
+        schema = Flag().bind()
+        clean = schema.serialize(flag_model_data)
+        self.assertEqual(clean, flag_data)
 
 
 class ValidatorTestCase(TestCase):

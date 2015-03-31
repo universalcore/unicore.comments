@@ -72,7 +72,7 @@ class Comment(colander.MappingSchema):
 class Flag(colander.MappingSchema):
     comment_uuid = colander.SchemaNode(
         colander.String(),
-        validator=vlds.uuid_validator)
+        validator=vlds.comment_uuid_validator)
     user_uuid = colander.SchemaNode(
         colander.String(),
         validator=vlds.uuid_validator)
