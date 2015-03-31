@@ -166,8 +166,9 @@ class ValidatorTestCase(TestCase):
 
     def test_content_type_validator(self):
         self.data_comment['content_type'] = 'notacontenttype'
+        types = ', '.join(COMMENT_CONTENT_TYPES)
         self.assertRaisesRegexp(
-            colander.Invalid, 'is not one of page, category',
+            colander.Invalid, 'is not one of %s' % types,
             self.schema_comment.deserialize, self.data_comment)
 
     def test_content_url_validator(self):
