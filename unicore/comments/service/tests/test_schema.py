@@ -21,6 +21,8 @@ def simple_serialize(data):
             data[key] = str(value)
         elif isinstance(value, datetime):
             data[key] = '%s+00:00' % value.isoformat()
+        elif isinstance(value, uuid.UUID):
+            data[key] = value.hex
         else:
             data[key] = unicode(value)
 
@@ -43,8 +45,8 @@ class CommentTestCase(TestCase):
         self.assertIsInstance(clean.pop('submit_datetime'), datetime)
         self.assertEqual(clean.pop('is_removed'), False)
 
-        self.assertEqual(len(clean), len(comment_data) - 3)
-        self.assertDictContainsSubset(clean, comment_data)
+        self.assertEqual(len(clean), len(comment_model_data) - 3)
+        self.assertDictContainsSubset(clean, comment_model_data)
 
         # check that missing required fields raise an exception
         incomplete_data = comment_data.copy()
@@ -100,8 +102,8 @@ class FlagTestCase(TestCase):
         self.assertEqual(
             clean.pop('submit_datetime'),
             flag_model_data['submit_datetime'].replace(tzinfo=pytz.UTC))
-        self.assertEqual(len(clean), len(flag_data) - 1)
-        self.assertDictContainsSubset(clean, flag_data)
+        self.assertEqual(len(clean), len(flag_model_data) - 1)
+        self.assertDictContainsSubset(clean, flag_model_data)
 
         # check that missing required fields raise an exception
         # all flag fields are required
@@ -137,12 +139,12 @@ class ValidatorTestCase(TestCase):
         schema = Flag().bind(comment_uuid=comment_uuid)
         self.assertEqual(
             schema.deserialize(self.data_flag)['comment_uuid'],
-            comment_uuid)
+            uuid.UUID(comment_uuid))
 
         other_uuid = uuid.uuid4().hex
         schema = Flag().bind(comment_uuid=other_uuid)
         self.assertRaisesRegexp(
-            colander.Invalid, "is not one of %s" % other_uuid,
+            colander.Invalid, "is not one of %s" % uuid.UUID(other_uuid),
             schema.deserialize, self.data_flag)
 
     def test_ip_address_validator(self):

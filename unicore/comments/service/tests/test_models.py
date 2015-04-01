@@ -1,3 +1,4 @@
+from uuid import UUID
 from datetime import datetime, timedelta
 from unittest import TestCase
 
@@ -11,10 +12,10 @@ from unicore.comments.service.models import Comment, Flag
 
 
 comment_data = {
-    'uuid': 'd269f09c4672400da4250342d9d7e1e4',
-    'user_uuid': '2923280ee1904478bfcf7a46f26f443b',
-    'content_uuid': 'f587b74816bb425ab043f1cf30de7abe',
-    'app_uuid': 'bbc0035128b34ed48bdacab1799087c5',
+    'uuid': UUID('d269f09c4672400da4250342d9d7e1e4'),
+    'user_uuid': UUID('2923280ee1904478bfcf7a46f26f443b'),
+    'content_uuid': UUID('f587b74816bb425ab043f1cf30de7abe'),
+    'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
     'comment': u'this is a comment',
     'user_name': u'foo',
     'submit_datetime': datetime.utcnow(),
@@ -28,9 +29,9 @@ comment_data = {
     'ip_address': u'192.168.1.1'
 }
 flag_data = {
-    'comment_uuid': 'd269f09c4672400da4250342d9d7e1e4',
-    'user_uuid': '63f058d5de5143ecb455382bf654100c',
-    'app_uuid': 'bbc0035128b34ed48bdacab1799087c5',
+    'comment_uuid': UUID('d269f09c4672400da4250342d9d7e1e4'),
+    'user_uuid': UUID('63f058d5de5143ecb455382bf654100c'),
+    'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
     'submit_datetime': datetime.utcnow()
 }
 
