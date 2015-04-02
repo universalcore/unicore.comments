@@ -9,6 +9,10 @@ class InvalidJSONError(Exception):
     pass
 
 
+class Http404(Exception):
+    pass
+
+
 def deserialize_or_raise(schema, req):
     try:
         if req.getHeader('Content-Type') != 'application/json':
@@ -41,3 +45,11 @@ def bad_json(request, failure):
     return make_json_response(request, {
         'status': 'error',
         'error_message': unicode(failure.value)})
+
+
+@app.handle_errors(Http404)
+def not_found(request, failure):
+    request.setResponseCode(404)
+    return make_json_response(request, {
+        'status': 'error',
+        'error_message': 'Resource not found'})

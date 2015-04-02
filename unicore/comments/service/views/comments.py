@@ -1,14 +1,21 @@
+from uuid import UUID
+
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 from unicore.comments.service import db, app
 from unicore.comments.service.views import (
-    make_json_response, deserialize_or_raise)
+    make_json_response, Http404, deserialize_or_raise)
 from unicore.comments.service.models import Comment
 from unicore.comments.service.schema import Comment as CommentSchema
 
 
 schema = CommentSchema()
 schema_all = CommentSchema(include_all=True)
+
+
+'''
+Comment resource
+'''
 
 
 @app.route('/comments/', methods=['POST'])
@@ -20,27 +27,76 @@ def create_comment(request):
     def func(connection):
         comment = Comment(connection, data)
         yield comment.insert()
-        resp = make_json_response(
-            request, comment.to_dict(), schema=schema_all)
-        returnValue(resp)
+        returnValue(make_json_response(
+            request, comment.to_dict(), schema=schema_all))
 
     resp = yield db.in_transaction(app.db_engine, func)
     request.setResponseCode(201)
     returnValue(resp)
 
 
-@app.route('/comments/', methods=['GET'])
-def view_comment(request):
-    return 'hello world'
-
-
-@app.route('/comments/', methods=['PUT'])
+@app.route('/comments/<uuid>/', methods=['GET'])
 @inlineCallbacks
-def update_comment(request):
-    pass
+def view_comment(request, uuid):
+    try:
+        uuid = UUID(uuid)
+    except ValueError:
+        raise Http404
+
+    connection = yield app.db_engine.connect()
+    comment = yield Comment.get_by_pk(connection, uuid=uuid)
+    yield connection.close()
+
+    if comment is None:
+        raise Http404
+
+    returnValue(make_json_response(
+        request, comment.to_dict(), schema=schema_all))
 
 
-@app.route('/comments/', methods=['DELETE'])
+@app.route('/comments/<uuid>/', methods=['PUT'])
 @inlineCallbacks
-def delete_comment(request):
-    pass
+def update_comment(request, uuid):
+    data = deserialize_or_raise(schema.bind(comment_uuid=uuid), request)
+
+    @inlineCallbacks
+    def func(connection):
+        comment = Comment(connection, data)
+        count = yield comment.update()
+
+        if count == 0:
+            raise Http404
+
+        returnValue(make_json_response(
+            request, comment.to_dict(), schema=schema_all))
+
+    resp = yield db.in_transaction(app.db_engine, func)
+    returnValue(resp)
+
+
+@app.route('/comments/<uuid>/', methods=['DELETE'])
+@inlineCallbacks
+def delete_comment(request, uuid):
+    try:
+        uuid = UUID(uuid)
+    except ValueError:
+        raise Http404
+
+    @inlineCallbacks
+    def func(connection):
+        comment = Comment(connection, {'uuid': uuid})
+        count = yield comment.delete()
+
+        if count == 0:
+            raise Http404
+
+        returnValue(make_json_response(
+            request, comment.to_dict(), schema=schema_all))
+
+    resp = yield db.in_transaction(app.db_engine, func)
+    returnValue(resp)
+
+
+'''
+Comment collection resource
+'''

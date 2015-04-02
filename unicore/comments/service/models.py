@@ -67,16 +67,22 @@ class RowObjectMixin(object):
         self.row_dict[attr] = value
 
     @inlineCallbacks
-    def insert(self):
-        query = self.__table__ \
-            .insert() \
-            .values(self.row_dict) \
-            .returning(*self.__table__.c)
+    def _query_and_refresh(self, query):
+        query = query.returning(*self.__table__.c)
         result = yield self.connection.execute(query)
         # update data with auto-generated defaults
         if result.rowcount:
             returned = yield result.fetchone()
             self.row_dict = dict((k, v) for k, v in returned.items())
+
+        returnValue(result)
+
+    @inlineCallbacks
+    def insert(self):
+        query = self.__table__ \
+            .insert() \
+            .values(self.row_dict)
+        result = yield self._query_and_refresh(query)
         returnValue(result.rowcount)
 
     @inlineCallbacks
@@ -89,7 +95,15 @@ class RowObjectMixin(object):
             .update() \
             .values(**data_without_pk) \
             .where(self.pk_expression)
-        result = yield self.connection.execute(query)
+        result = yield self._query_and_refresh(query)
+        returnValue(result.rowcount)
+
+    @inlineCallbacks
+    def delete(self):
+        query = self.__table__ \
+            .delete() \
+            .where(self.pk_expression)
+        result = yield self._query_and_refresh(query)
         returnValue(result.rowcount)
 
     @classmethod

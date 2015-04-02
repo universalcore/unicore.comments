@@ -9,12 +9,12 @@ def get_engine(config, reactor):
 
 
 @inlineCallbacks
-def in_transaction(db_engine, func):
+def in_transaction(db_engine, func, *func_args, **func_kwargs):
     connection = yield db_engine.connect()
     transaction = yield connection.begin()
 
     try:
-        returnVal = yield func(connection)
+        returnVal = yield func(connection, *func_args, **func_kwargs)
     except Exception as e:
         yield transaction.rollback()
         raise e
