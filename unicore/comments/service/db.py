@@ -21,6 +21,6 @@ def in_transaction(db_engine, func, *func_args, **func_kwargs):
     else:
         yield transaction.commit()
     finally:
-        connection.close()
+        yield connection.close()
 
     returnValue(returnVal)

@@ -98,5 +98,5 @@ def delete_comment(request, uuid):
 
 
 '''
-Comment collection resource
+TODO: Comment collection resource
 '''
