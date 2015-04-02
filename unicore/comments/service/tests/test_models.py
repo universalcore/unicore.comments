@@ -98,6 +98,29 @@ class ModelTests(object):
             for key, value in new_data.iteritems():
                 self.assertEqual(instance.get(key), value)
 
+    def test_delete(self):
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
+
+        # check that we can delete with only primary keys
+        pk_fields = dict(
+            (c.name, obj.get(c.name))
+            for c in inspect(self.model_class.__table__).primary_key)
+        obj_deleted = self.model_class(self.connection, pk_fields)
+        result = self.successResultOf(obj_deleted.delete())
+
+        self.assertEqual(result, 1)
+        exists_query = self.model_class.__table__ \
+            .select(
+                exists().where(obj.pk_expression)
+            )
+        result = self.successResultOf(self.connection.execute(exists_query))
+        result = self.successResultOf(result.scalar())
+        self.assertFalse(result)
+
+        # check that object is updated with row data that was deleted
+        self.assertEqual(obj.row_dict, obj_deleted.row_dict)
+
     def test_get_by_pk(self):
         obj = self.model_class(self.connection, self.instance_data)
         self.successResultOf(obj.insert())
