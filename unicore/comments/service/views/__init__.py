@@ -1,15 +1,12 @@
 import json
 
 import colander
+from werkzeug.exceptions import NotFound
 
 from unicore.comments.service import app
 
 
 class InvalidJSONError(Exception):
-    pass
-
-
-class Http404(Exception):
     pass
 
 
@@ -47,7 +44,7 @@ def bad_json(request, failure):
         'error_message': unicode(failure.value)})
 
 
-@app.handle_errors(Http404)
+@app.handle_errors(NotFound)
 def not_found(request, failure):
     request.setResponseCode(404)
     return make_json_response(request, {

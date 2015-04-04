@@ -2,4 +2,4 @@ from klein import Klein
 
 
 app = Klein()
-resource = app.resource
+resource = app.resource()

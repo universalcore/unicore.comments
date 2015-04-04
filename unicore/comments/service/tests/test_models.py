@@ -1,6 +1,7 @@
 from uuid import UUID
 from datetime import datetime, timedelta
 from unittest import TestCase
+import pytz
 
 from alembic import command as alembic_command
 from sqlalchemy.sql.expression import exists
@@ -18,7 +19,7 @@ comment_data = {
     'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
     'comment': u'this is a comment',
     'user_name': u'foo',
-    'submit_datetime': datetime.utcnow(),
+    'submit_datetime': datetime.now(pytz.utc),
     'content_type': u'page',
     'content_title': u'I Am A Page',
     'content_url': u'http://example.com/page/',
@@ -32,7 +33,7 @@ flag_data = {
     'comment_uuid': UUID('d269f09c4672400da4250342d9d7e1e4'),
     'user_uuid': UUID('63f058d5de5143ecb455382bf654100c'),
     'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
-    'submit_datetime': datetime.utcnow()
+    'submit_datetime': datetime.now(pytz.utc)
 }
 
 
@@ -84,7 +85,7 @@ class ModelTests(object):
             elif isinstance(new_data[key], basestring):
                 new_data[key] = u'new'
             elif isinstance(new_data[key], datetime):
-                new_data[key] = datetime.utcnow() + timedelta(hours=1)
+                new_data[key] = datetime.now(pytz.utc) + timedelta(hours=1)
 
         for key, value in new_data.iteritems():
             obj.set(key, value)

@@ -137,7 +137,7 @@ class Comment(RowObjectMixin):
         # Other required data
         Column('comment', Unicode(COMMENT_MAX_LENGTH), nullable=False),
         Column('user_name', Unicode(255), nullable=False),
-        Column('submit_datetime', DateTime, nullable=False),
+        Column('submit_datetime', DateTime(timezone=True), nullable=False),
         Column('content_type', Unicode(255), nullable=False),
         Column('content_title', Unicode(255), nullable=False),
         Column('content_url', URLType(), nullable=False),
@@ -167,7 +167,7 @@ class Flag(RowObjectMixin):
         Column('user_uuid', UUIDType(binary=False), primary_key=True),
         # Other required data
         Column('app_uuid', UUIDType(binary=False), nullable=False),
-        Column('submit_datetime', DateTime, nullable=False),
+        Column('submit_datetime', DateTime(timezone=True), nullable=False),
         # Indexes
         Index('flag_submit_datetime_index', 'submit_datetime'),
         Index('flag_app_index', 'app_uuid')

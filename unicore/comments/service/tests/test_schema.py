@@ -20,7 +20,7 @@ def simple_serialize(data):
         elif isinstance(value, int):
             data[key] = str(value)
         elif isinstance(value, datetime):
-            data[key] = '%s+00:00' % value.isoformat()
+            data[key] = value.isoformat()
         elif isinstance(value, uuid.UUID):
             data[key] = value.hex
         else:
