@@ -70,23 +70,20 @@ class CRUDTests(object):
     def get_detail_url(self, data):
         return self.detail_url % data
 
-    def _assertExists(self, data, does_exist=True):
+    def queryExists(self, data, does_exist=True):
         exists_query = self.model_class.__table__ \
             .select(
                 exists().where(self.model_class._pk_expression(data))
             )
-        result = yield self.connection.execute(exists_query)
-        result = yield result.scalar()
-        if does_exist:
-            self.assertTrue(result)
-        else:
-            self.assertFalse(result)
+        result = self.successResultOf(self.connection.execute(exists_query))
+        result = self.successResultOf(result.scalar())
+        return result
 
     def assertExists(self, data):
-        self._assertExists(data)
+        self.assertTrue(self.queryExists(data))
 
     def assertNotExists(self, data):
-        self._assertExists(data, does_exist=False)
+        self.assertFalse(self.queryExists(data))
 
     def test_create(self):
         data = self.without_pk_fields(self.instance_data)
