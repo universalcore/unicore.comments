@@ -8,9 +8,10 @@ from klein.test.test_resource import requestMock, _render
 
 from unicore.comments.service import app, resource
 from unicore.comments.service.tests import BaseTestCase
-from unicore.comments.service.models import Comment
-from unicore.comments.service.tests.test_schema import comment_data
-from unicore.comments.service.schema import Comment as CommentSchema
+from unicore.comments.service.models import Comment, Flag
+from unicore.comments.service.tests.test_schema import comment_data, flag_data
+from unicore.comments.service.schema import (
+    Comment as CommentSchema, Flag as FlagSchema)
 from unicore.comments.service.views import comments, flags  # noqa
 
 
@@ -60,6 +61,7 @@ class CRUDTests(object):
     model_class = None
     instance_data = None
     schema = None
+    autogenerate_pk_fields = True
 
     def without_pk_fields(self, data):
         data = data.copy()
@@ -70,7 +72,7 @@ class CRUDTests(object):
     def get_detail_url(self, data):
         return self.detail_url % data
 
-    def queryExists(self, data, does_exist=True):
+    def queryExists(self, data):
         exists_query = self.model_class.__table__ \
             .select(
                 exists().where(self.model_class._pk_expression(data))
@@ -86,7 +88,10 @@ class CRUDTests(object):
         self.assertFalse(self.queryExists(data))
 
     def test_create(self):
-        data = self.without_pk_fields(self.instance_data)
+        if self.autogenerate_pk_fields:
+            data = self.without_pk_fields(self.instance_data)
+        else:
+            data = self.instance_data
         request = self.post(self.base_url, data)
 
         self.assertEqual(request.code, 201)
@@ -106,8 +111,8 @@ class CRUDTests(object):
         request = self.get(self.get_detail_url(self.instance_data))
         self.assertEqual(request.code, 404)
 
-        request = self.post(self.base_url, self.instance_data)
-        self.assertEqual(request.code, 201)
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
         request = self.get(self.get_detail_url(self.instance_data))
 
         self.assertEqual(request.code, 200)
@@ -116,8 +121,8 @@ class CRUDTests(object):
             self.schema.deserialize(json.loads(request.getWrittenData())))
 
     def test_update(self):
-        request = self.post(self.base_url, self.instance_data)
-        self.assertEqual(request.code, 201)
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
 
         data = self.instance_data.copy()
         data['submit_datetime'] = datetime.now(pytz.utc).isoformat()
@@ -132,8 +137,8 @@ class CRUDTests(object):
         request = self.delete(self.get_detail_url(self.instance_data))
         self.assertEqual(request.code, 404)
 
-        request = self.post(self.base_url, self.instance_data)
-        self.assertEqual(request.code, 201)
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
         request = self.delete(self.get_detail_url(self.instance_data))
 
         self.assertEqual(request.code, 200)
@@ -150,3 +155,17 @@ class CommentCRUDTestCase(ViewTestCase, CRUDTests):
     model_class = Comment
     instance_data = comment_data
     schema = CommentSchema().bind()
+
+
+class FlagCRUDTestCase(ViewTestCase, CRUDTests):
+    base_url = '/flags/'
+    detail_url = '/flags/%(comment_uuid)s/%(user_uuid)s/'
+    model_class = Flag
+    instance_data = flag_data
+    schema = FlagSchema().bind()
+    autogenerate_pk_fields = False
+
+    def setUp(self):
+        super(FlagCRUDTestCase, self).setUp()
+        comment = Comment(self.connection, comment_data)
+        self.successResultOf(comment.insert())
