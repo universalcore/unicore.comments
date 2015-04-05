@@ -43,11 +43,7 @@ class BaseTestCase(TestCase):
             self.successResultOf(
                 self.connection.execute(CreateTable(model.__table__)))
 
-        self.transaction = self.successResultOf(self.connection.begin())
-
     def tearDown(self):
-        self.successResultOf(self.transaction.rollback())
-
         for model in (Flag, Comment):
             self.successResultOf(
                 self.connection.execute(DropTable(model.__table__)))

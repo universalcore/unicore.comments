@@ -32,7 +32,7 @@ class Comment(colander.MappingSchema):
     '''
     uuid = colander.SchemaNode(
         UUIDType(),
-        validator=vlds.comment_uuid_validator,
+        validator=vlds.known_uuid_validator('comment_uuid'),
         missing=colander.drop)
     app_uuid = colander.SchemaNode(UUIDType())
     content_uuid = colander.SchemaNode(UUIDType())
@@ -89,8 +89,10 @@ class Comment(colander.MappingSchema):
 class Flag(colander.MappingSchema):
     comment_uuid = colander.SchemaNode(
         UUIDType(),
-        validator=vlds.comment_uuid_validator)
-    user_uuid = colander.SchemaNode(UUIDType())
+        validator=vlds.known_uuid_validator('comment_uuid'))
+    user_uuid = colander.SchemaNode(
+        UUIDType(),
+        validator=vlds.known_uuid_validator('user_uuid'))
     app_uuid = colander.SchemaNode(UUIDType())
     submit_datetime = colander.SchemaNode(
         colander.DateTime())

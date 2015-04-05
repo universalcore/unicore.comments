@@ -13,13 +13,17 @@ from unicore.comments.service.models import (
 LOCALE_CODE_RE = re.compile(r'^[a-z]{3}_[A-Z]{2}$')
 
 
-@colander.deferred
-def comment_uuid_validator(node, kw):
-    # ensure the provided uuid matches the uuid in the data
-    comment_uuid = kw.get('comment_uuid', None)
-    if comment_uuid is None:
-        return None
-    return colander.OneOf([uuid.UUID(comment_uuid)])
+def known_uuid_validator(name):
+
+    @colander.deferred
+    def validator(node, kw):
+        # ensure the provided uuid matches the uuid in the data
+        named_uuid = kw.get(name, None)
+        if named_uuid is None:
+            return None
+        return colander.OneOf([uuid.UUID(named_uuid)])
+
+    return validator
 
 
 def ip_address_validator(node, value):
