@@ -49,8 +49,7 @@ def create_flag(request):
                 'Flag for comment %r and user %r already exists' %
                 (data['comment_uuid'].hex, data['user_uuid'].hex))
 
-        returnValue(make_json_response(
-            request, flag.to_dict(), schema=schema))
+        returnValue(make_json_response(request, flag.to_dict(), schema=schema))
 
     resp = yield db.in_transaction(app.db_engine, func)
     request.setResponseCode(201)
@@ -114,6 +113,13 @@ def delete_flag(request, comment_uuid, user_uuid):
 
         if count == 0:
             raise NotFound
+
+        # decrement flag count
+        query = Comment.__table__ \
+            .update() \
+            .values(flag_count=Comment.__table__.c.flag_count - 1) \
+            .where(Comment.__table__.c.uuid == comment_uuid)
+        yield connection.execute(query)
 
         returnValue(make_json_response(request, flag.to_dict(), schema=schema))
 

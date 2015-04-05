@@ -1,6 +1,7 @@
 import json
 from datetime import datetime
 import pytz
+import uuid
 
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql.expression import exists
@@ -167,5 +168,31 @@ class FlagCRUDTestCase(ViewTestCase, CRUDTests):
 
     def setUp(self):
         super(FlagCRUDTestCase, self).setUp()
-        comment = Comment(self.connection, comment_data)
-        self.successResultOf(comment.insert())
+        self.comment = Comment(self.connection, comment_data)
+        self.successResultOf(self.comment.insert())
+
+    def test_create(self):
+        super(FlagCRUDTestCase, self).test_create()
+
+        # check that flag count has been incremented
+        comment = self.successResultOf(Comment.get_by_pk(
+            self.connection, uuid=self.comment.get('uuid')))
+        self.assertEqual(comment.get('flag_count'), 1)
+
+        # check that inserting duplicate fails
+        request = self.post(self.base_url, self.instance_data)
+        self.assertEqual(request.code, 400)
+
+        # check that inserting flag without existing comment fails
+        data = self.instance_data.copy()
+        data['comment_uuid'] = uuid.uuid4().hex  # non-existent comment uuid
+        request = self.post(self.base_url, data)
+        self.assertEqual(request.code, 400)
+
+    def test_delete(self):
+        super(FlagCRUDTestCase, self).test_delete()
+
+        # check that flag count has been decremented
+        comment = self.successResultOf(Comment.get_by_pk(
+            self.connection, uuid=self.comment.get('uuid')))
+        self.assertEqual(comment.get('flag_count'), -1)
