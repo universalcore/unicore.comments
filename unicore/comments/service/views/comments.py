@@ -20,20 +20,16 @@ Comment resource
 
 
 @app.route('/comments/', methods=['POST'])
+@db.in_transaction
 @inlineCallbacks
-def create_comment(request):
+def create_comment(request, connection):
     data = deserialize_or_raise(schema.bind(), request)
+    comment = Comment(connection, data)
+    yield comment.insert()
 
-    @inlineCallbacks
-    def func(connection):
-        comment = Comment(connection, data)
-        yield comment.insert()
-        returnValue(make_json_response(
-            request, comment.to_dict(), schema=schema_all))
-
-    resp = yield db.in_transaction(app.db_engine, func)
     request.setResponseCode(201)
-    returnValue(resp)
+    returnValue(make_json_response(
+        request, comment.to_dict(), schema=schema_all))
 
 
 @app.route('/comments/<uuid>/', methods=['GET'])
@@ -56,46 +52,37 @@ def view_comment(request, uuid):
 
 
 @app.route('/comments/<uuid>/', methods=['PUT'])
+@db.in_transaction
 @inlineCallbacks
-def update_comment(request, uuid):
+def update_comment(request, uuid, connection):
     data = deserialize_or_raise(schema.bind(comment_uuid=uuid), request)
+    comment = Comment(connection, data)
+    count = yield comment.update()
 
-    @inlineCallbacks
-    def func(connection):
-        comment = Comment(connection, data)
-        count = yield comment.update()
+    if count == 0:
+        raise NotFound
 
-        if count == 0:
-            raise NotFound
-
-        returnValue(make_json_response(
-            request, comment.to_dict(), schema=schema_all))
-
-    resp = yield db.in_transaction(app.db_engine, func)
-    returnValue(resp)
+    returnValue(make_json_response(
+        request, comment.to_dict(), schema=schema_all))
 
 
 @app.route('/comments/<uuid>/', methods=['DELETE'])
+@db.in_transaction
 @inlineCallbacks
-def delete_comment(request, uuid):
+def delete_comment(request, uuid, connection):
     try:
         uuid = UUID(uuid)
     except ValueError:
         raise NotFound
 
-    @inlineCallbacks
-    def func(connection):
-        comment = Comment(connection, {'uuid': uuid})
-        count = yield comment.delete()
+    comment = Comment(connection, {'uuid': uuid})
+    count = yield comment.delete()
 
-        if count == 0:
-            raise NotFound
+    if count == 0:
+        raise NotFound
 
-        returnValue(make_json_response(
-            request, comment.to_dict(), schema=schema_all))
-
-    resp = yield db.in_transaction(app.db_engine, func)
-    returnValue(resp)
+    returnValue(make_json_response(
+        request, comment.to_dict(), schema=schema_all))
 
 
 '''
