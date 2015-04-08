@@ -2,7 +2,6 @@ import json
 from datetime import datetime, timedelta
 import pytz
 import uuid
-import time
 
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql.expression import exists
