@@ -61,10 +61,12 @@ def view_flag(request, comment_uuid, user_uuid):
     except ValueError:
         raise NotFound
 
-    connection = yield app.db_engine.connect()
-    flag = yield Flag.get_by_pk(
-        connection, comment_uuid=comment_uuid, user_uuid=user_uuid)
-    yield connection.close()
+    try:
+        connection = yield app.db_engine.connect()
+        flag = yield Flag.get_by_pk(
+            connection, comment_uuid=comment_uuid, user_uuid=user_uuid)
+    finally:
+        yield connection.close()
 
     if flag is None:
         raise NotFound
