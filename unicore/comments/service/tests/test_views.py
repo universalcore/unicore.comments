@@ -1,7 +1,8 @@
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytz
 import uuid
+import time
 
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql.expression import exists
@@ -48,6 +49,10 @@ class ViewTestCase(BaseTestCase):
 
     def delete(self, path, headers=None):
         return self.request('DELETE', path, headers=headers)
+
+    def get_json(self, path, headers=None):
+        request = self.get(path, headers=headers)
+        return json.loads(request.getWrittenData())
 
     def tearDown(self):
         super(ViewTestCase, self).tearDown()
@@ -149,6 +154,38 @@ class CRUDTests(object):
         self.assertNotExists(written_data)
 
 
+class ListTests(object):
+
+    def test_pagination(self):
+        data = self.get_json(self.base_url)
+        self.assertEqual(data['limit'], 50)
+        self.assertEqual(data['offset'], 0)
+        self.assertEqual(data['count'], 10)
+        self.assertEqual(len(data['objects']), 10)
+
+        data = self.get_json('%s?limit=10&offset=3' % self.base_url)
+        self.assertEqual(data['limit'], 10)
+        self.assertEqual(data['offset'], 3)
+        self.assertEqual(data['count'], 7)
+        self.assertEqual(len(data['objects']), 7)
+
+        data = self.get_json('%s?limit=5&offset=2' % self.base_url)
+        self.assertEqual(data['limit'], 5)
+        self.assertEqual(data['offset'], 2)
+        self.assertEqual(data['count'], 5)
+        self.assertEqual(len(data['objects']), 5)
+
+    def test_ordering(self):
+        sorted_by_date = sorted(
+            self.objects, key=lambda o: o.get('submit_datetime'),
+            reverse=True)
+        data = self.get_json(self.base_url)
+        self.assertEqual(
+            map(lambda o: o['submit_datetime'], data['objects']),
+            map(lambda o: o.get('submit_datetime').isoformat(), sorted_by_date)
+        )
+
+
 class CommentCRUDTestCase(ViewTestCase, CRUDTests):
     base_url = '/comments/'
     detail_url = '/comments/%(uuid)s/'
@@ -195,3 +232,53 @@ class FlagCRUDTestCase(ViewTestCase, CRUDTests):
         comment = self.successResultOf(Comment.get_by_pk(
             self.connection, uuid=self.comment.get('uuid')))
         self.assertEqual(comment.get('flag_count'), -1)
+
+
+class CommentListTestCase(ViewTestCase, ListTests):
+    base_url = '/comments/'
+
+    def setUp(self):
+        super(CommentListTestCase, self).setUp()
+        data = comment_data.copy()
+        del data['uuid']
+        self.objects = []
+        for i in range(10):
+            data['submit_datetime'] = (
+                datetime.now(pytz.utc) + timedelta(hours=i))
+            obj = Comment(self.connection, data)
+            self.successResultOf(obj.insert())
+            self.objects.append(obj)
+
+    def test_after(self):
+        objects_sorted = sorted(self.objects, key=lambda o: o.get('uuid').hex)
+        dt = datetime.now(pytz.utc)
+        # fix submit_datetime
+        for obj in self.objects:
+            obj.set('submit_datetime', dt)
+            self.successResultOf(obj.update())
+        after_obj = objects_sorted[3]
+        data = self.get_json('/comments/?after=%s' % after_obj.get('uuid'))
+
+        self.assertEqual(
+            [o['uuid'] for o in data['objects']],
+            [o.get('uuid').hex for o in objects_sorted[4:]])
+
+
+class FlagListTestCase(ViewTestCase, ListTests):
+    base_url = '/flags/'
+
+    def setUp(self):
+        super(FlagListTestCase, self).setUp()
+        self.comment = Comment(self.connection, comment_data)
+        self.successResultOf(self.comment.insert())
+
+        data = flag_data.copy()
+        data['comment_uuid'] = self.comment.get('uuid')
+        self.objects = []
+        for i in range(10):
+            data['submit_datetime'] = (
+                datetime.now(pytz.utc) + timedelta(hours=i))
+            data['user_uuid'] = uuid.uuid4().hex
+            obj = Flag(self.connection, data)
+            self.successResultOf(obj.insert())
+            self.objects.append(obj)

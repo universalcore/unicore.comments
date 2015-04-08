@@ -16,8 +16,10 @@ test_dir = os.path.dirname(__file__)
 
 
 def requestMock(path, method="GET", body=None, headers=None):
-    request = baseRequestMock(path, method, body=body, headers=headers)
-    request.args = parse_qs(urlparse(request.uri).query)
+    parts = urlparse(path)
+    request = baseRequestMock(parts.path, method, body=body, headers=headers)
+    request.args = parse_qs(parts.query)
+    request.path = parts.path
     return request
 
 
