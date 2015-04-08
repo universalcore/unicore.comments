@@ -9,11 +9,23 @@ from unicore.comments.service.views import (
     make_json_response, deserialize_or_raise, pagination)
 from unicore.comments.service.models import Comment
 from unicore.comments.service.schema import Comment as CommentSchema
-from unicore.comments.service.views.filtering import comment_filters
+from unicore.comments.service.views.filtering import FilterSchema, ALL
 
 
 schema = CommentSchema()
 schema_all = CommentSchema(include_all=True)
+comment_filters = FilterSchema.from_schema(schema_all, {
+    'content_uuid': ALL,
+    'content_type': ALL,
+    'content_title': ALL,
+    'user_uuid': ALL,
+    'user_name': ALL,
+    'app_uuid': ALL,
+    'submit_datetime': ALL,
+    'is_removed': ALL,
+    'moderation_state': ALL,
+    'flag_count': ALL
+})
 
 
 '''

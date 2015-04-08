@@ -2,7 +2,7 @@ import colander
 
 from sqlalchemy import and_
 
-from unicore.comments.service.schema import UUIDType, Comment, Flag
+from unicore.comments.service.schema import UUIDType
 
 
 VALID_FILTER_TYPES = {
@@ -159,23 +159,3 @@ class FilterSchema(colander.MappingSchema):
                 expr = column <= value
 
         return expr
-
-
-comment_filters = FilterSchema.from_schema(Comment(include_all=True), {
-    'content_uuid': ALL,
-    'content_type': ALL,
-    'content_title': ALL,
-    'user_uuid': ALL,
-    'user_name': ALL,
-    'app_uuid': ALL,
-    'submit_datetime': ALL,
-    'is_removed': ALL,
-    'moderation_state': ALL,
-    'flag_count': ALL
-})
-flag_filters = FilterSchema.from_schema(Flag(), {
-    'comment_uuid': ALL,
-    'user_uuid': ALL,
-    'app_uuid': ALL,
-    'submit_datetime': ALL
-})
