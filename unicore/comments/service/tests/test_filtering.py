@@ -9,7 +9,8 @@ import mock
 
 from unicore.comments.service.tests import requestMock
 from unicore.comments.service.views.filtering import (
-    FilterSchema, ALL, DelimitedSequenceSchema, comment_filters)
+    FilterSchema, ALL, DelimitedSequenceSchema)
+from unicore.comments.service.views.comments import comment_filters
 from unicore.comments.service.schema import UUIDType
 from unicore.comments.service.models import Comment
 

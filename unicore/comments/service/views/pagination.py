@@ -7,7 +7,6 @@ def paginate(args, query):
     limit = min(int(limit), MAX_LIMIT)
     offset = args.get('offset', [0])[0]
     offset = int(offset)
-    print limit, offset
 
     query = query.limit(limit)
     if offset:
