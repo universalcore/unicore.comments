@@ -2,4 +2,4 @@
 set -e
 
 flake8 unicore --exclude alembic
-trial unicore/comments
+trial --coverage unicore/comments
