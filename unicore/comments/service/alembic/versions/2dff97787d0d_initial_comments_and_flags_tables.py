@@ -26,7 +26,7 @@ def upgrade():
     sa.Column('app_uuid', sqlalchemy_utils.types.uuid.UUIDType(binary=False), nullable=False),
     sa.Column('comment', sa.Unicode(length=3000), nullable=False),
     sa.Column('user_name', sa.Unicode(length=255), nullable=False),
-    sa.Column('submit_datetime', sa.DateTime(), nullable=False),
+    sa.Column('submit_datetime', sa.DateTime(timezone=True), nullable=False),
     sa.Column('content_type', sa.Unicode(length=255), nullable=False),
     sa.Column('content_title', sa.Unicode(length=255), nullable=False),
     sa.Column('content_url', sqlalchemy_utils.types.url.URLType(), nullable=False),
@@ -44,7 +44,7 @@ def upgrade():
     sa.Column('comment_uuid', sqlalchemy_utils.types.uuid.UUIDType(binary=False), nullable=False),
     sa.Column('user_uuid', sqlalchemy_utils.types.uuid.UUIDType(binary=False), nullable=False),
     sa.Column('app_uuid', sqlalchemy_utils.types.uuid.UUIDType(binary=False), nullable=False),
-    sa.Column('submit_datetime', sa.DateTime(), nullable=False),
+    sa.Column('submit_datetime', sa.DateTime(timezone=True), nullable=False),
     sa.ForeignKeyConstraint(['comment_uuid'], ['comments.uuid'], ),
     sa.PrimaryKeyConstraint('comment_uuid', 'user_uuid')
     )

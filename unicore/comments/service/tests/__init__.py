@@ -1,7 +1,7 @@
 import os
 
 from alembic.config import Config as AlembicConfig
-from sqlalchemy.schema import CreateTable
+from sqlalchemy.schema import CreateTable, DropTable
 from twisted.trial.unittest import TestCase
 
 from aludel.tests.doubles import FakeReactorThreads
@@ -38,12 +38,14 @@ class BaseTestCase(TestCase):
         self.config = mk_config()
         self.engine = db.get_engine(self.config, FakeReactorThreads())
         self.connection = self.successResultOf(self.engine.connect())
-        self.transaction = self.successResultOf(self.connection.begin())
 
         for model in (Comment, Flag):
             self.successResultOf(
                 self.connection.execute(CreateTable(model.__table__)))
 
     def tearDown(self):
-        self.successResultOf(self.transaction.rollback())
+        for model in (Flag, Comment):
+            self.successResultOf(
+                self.connection.execute(DropTable(model.__table__)))
+
         self.successResultOf(self.connection.close())

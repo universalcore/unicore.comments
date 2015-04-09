@@ -67,16 +67,22 @@ class RowObjectMixin(object):
         self.row_dict[attr] = value
 
     @inlineCallbacks
-    def insert(self):
-        query = self.__table__ \
-            .insert() \
-            .values(self.row_dict) \
-            .returning(*self.__table__.c)
+    def _query_and_refresh(self, query):
+        query = query.returning(*self.__table__.c)
         result = yield self.connection.execute(query)
         # update data with auto-generated defaults
         if result.rowcount:
             returned = yield result.fetchone()
             self.row_dict = dict((k, v) for k, v in returned.items())
+
+        returnValue(result)
+
+    @inlineCallbacks
+    def insert(self):
+        query = self.__table__ \
+            .insert() \
+            .values(self.row_dict)
+        result = yield self._query_and_refresh(query)
         returnValue(result.rowcount)
 
     @inlineCallbacks
@@ -89,7 +95,15 @@ class RowObjectMixin(object):
             .update() \
             .values(**data_without_pk) \
             .where(self.pk_expression)
-        result = yield self.connection.execute(query)
+        result = yield self._query_and_refresh(query)
+        returnValue(result.rowcount)
+
+    @inlineCallbacks
+    def delete(self):
+        query = self.__table__ \
+            .delete() \
+            .where(self.pk_expression)
+        result = yield self._query_and_refresh(query)
         returnValue(result.rowcount)
 
     @classmethod
@@ -123,7 +137,7 @@ class Comment(RowObjectMixin):
         # Other required data
         Column('comment', Unicode(COMMENT_MAX_LENGTH), nullable=False),
         Column('user_name', Unicode(255), nullable=False),
-        Column('submit_datetime', DateTime, nullable=False),
+        Column('submit_datetime', DateTime(timezone=True), nullable=False),
         Column('content_type', Unicode(255), nullable=False),
         Column('content_title', Unicode(255), nullable=False),
         Column('content_url', URLType(), nullable=False),
@@ -153,7 +167,7 @@ class Flag(RowObjectMixin):
         Column('user_uuid', UUIDType(binary=False), primary_key=True),
         # Other required data
         Column('app_uuid', UUIDType(binary=False), nullable=False),
-        Column('submit_datetime', DateTime, nullable=False),
+        Column('submit_datetime', DateTime(timezone=True), nullable=False),
         # Indexes
         Index('flag_submit_datetime_index', 'submit_datetime'),
         Index('flag_app_index', 'app_uuid')

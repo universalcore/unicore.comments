@@ -1,5 +1,7 @@
+from uuid import UUID
 from datetime import datetime, timedelta
 from unittest import TestCase
+import pytz
 
 from alembic import command as alembic_command
 from sqlalchemy.sql.expression import exists
@@ -11,13 +13,13 @@ from unicore.comments.service.models import Comment, Flag
 
 
 comment_data = {
-    'uuid': 'd269f09c4672400da4250342d9d7e1e4',
-    'user_uuid': '2923280ee1904478bfcf7a46f26f443b',
-    'content_uuid': 'f587b74816bb425ab043f1cf30de7abe',
-    'app_uuid': 'bbc0035128b34ed48bdacab1799087c5',
+    'uuid': UUID('d269f09c4672400da4250342d9d7e1e4'),
+    'user_uuid': UUID('2923280ee1904478bfcf7a46f26f443b'),
+    'content_uuid': UUID('f587b74816bb425ab043f1cf30de7abe'),
+    'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
     'comment': u'this is a comment',
     'user_name': u'foo',
-    'submit_datetime': datetime.utcnow(),
+    'submit_datetime': datetime.now(pytz.utc),
     'content_type': u'page',
     'content_title': u'I Am A Page',
     'content_url': u'http://example.com/page/',
@@ -28,10 +30,10 @@ comment_data = {
     'ip_address': u'192.168.1.1'
 }
 flag_data = {
-    'comment_uuid': 'd269f09c4672400da4250342d9d7e1e4',
-    'user_uuid': '63f058d5de5143ecb455382bf654100c',
-    'app_uuid': 'bbc0035128b34ed48bdacab1799087c5',
-    'submit_datetime': datetime.utcnow()
+    'comment_uuid': UUID('d269f09c4672400da4250342d9d7e1e4'),
+    'user_uuid': UUID('63f058d5de5143ecb455382bf654100c'),
+    'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
+    'submit_datetime': datetime.now(pytz.utc)
 }
 
 
@@ -83,7 +85,7 @@ class ModelTests(object):
             elif isinstance(new_data[key], basestring):
                 new_data[key] = u'new'
             elif isinstance(new_data[key], datetime):
-                new_data[key] = datetime.utcnow() + timedelta(hours=1)
+                new_data[key] = datetime.now(pytz.utc) + timedelta(hours=1)
 
         for key, value in new_data.iteritems():
             obj.set(key, value)
@@ -96,6 +98,29 @@ class ModelTests(object):
         for instance in (obj, obj_from_db):
             for key, value in new_data.iteritems():
                 self.assertEqual(instance.get(key), value)
+
+    def test_delete(self):
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
+
+        # check that we can delete with only primary keys
+        pk_fields = dict(
+            (c.name, obj.get(c.name))
+            for c in inspect(self.model_class.__table__).primary_key)
+        obj_deleted = self.model_class(self.connection, pk_fields)
+        result = self.successResultOf(obj_deleted.delete())
+
+        self.assertEqual(result, 1)
+        exists_query = self.model_class.__table__ \
+            .select(
+                exists().where(obj.pk_expression)
+            )
+        result = self.successResultOf(self.connection.execute(exists_query))
+        result = self.successResultOf(result.scalar())
+        self.assertFalse(result)
+
+        # check that object is updated with row data that was deleted
+        self.assertEqual(obj.row_dict, obj_deleted.row_dict)
 
     def test_get_by_pk(self):
         obj = self.model_class(self.connection, self.instance_data)

@@ -1,6 +1,29 @@
+import uuid
+
 import colander
 
 from unicore.comments.service import validators as vlds
+
+
+class UUIDType(object):
+
+    def deserialize(self, node, cstruct):
+        if cstruct == colander.null:
+            return cstruct
+
+        try:
+            return uuid.UUID(cstruct)
+        except (ValueError, TypeError):
+            raise colander.Invalid(
+                node, '%r is not a valid hexadecimal UUID' % (cstruct, ))
+
+    def serialize(self, node, appstruct):
+        if appstruct == colander.null:
+            return 'colander.null'
+        return appstruct.hex
+
+    def cstruct_children(self, node, cstruct):
+        return []
 
 
 class Comment(colander.MappingSchema):
@@ -8,18 +31,12 @@ class Comment(colander.MappingSchema):
     Identifiers
     '''
     uuid = colander.SchemaNode(
-        colander.String(),
-        validator=vlds.comment_uuid_validator,
+        UUIDType(),
+        validator=vlds.known_uuid_validator('comment_uuid'),
         missing=colander.drop)
-    app_uuid = colander.SchemaNode(
-        colander.String(),
-        validator=vlds.uuid_validator)
-    content_uuid = colander.SchemaNode(
-        colander.String(),
-        validator=vlds.uuid_validator)
-    user_uuid = colander.SchemaNode(
-        colander.String(),
-        validator=vlds.uuid_validator)
+    app_uuid = colander.SchemaNode(UUIDType())
+    content_uuid = colander.SchemaNode(UUIDType())
+    user_uuid = colander.SchemaNode(UUIDType())
     '''
     Other required data
     '''
@@ -71,13 +88,11 @@ class Comment(colander.MappingSchema):
 
 class Flag(colander.MappingSchema):
     comment_uuid = colander.SchemaNode(
-        colander.String(),
-        validator=vlds.comment_uuid_validator)
+        UUIDType(),
+        validator=vlds.known_uuid_validator('comment_uuid'))
     user_uuid = colander.SchemaNode(
-        colander.String(),
-        validator=vlds.uuid_validator)
-    app_uuid = colander.SchemaNode(
-        colander.String(),
-        validator=vlds.uuid_validator)
+        UUIDType(),
+        validator=vlds.known_uuid_validator('user_uuid'))
+    app_uuid = colander.SchemaNode(UUIDType())
     submit_datetime = colander.SchemaNode(
         colander.DateTime())
