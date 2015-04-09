@@ -2,4 +2,4 @@
 set -e
 
 flake8 unicore --exclude alembic
-trial --coverage unicore/comments
+coverage run --source=unicore.comments `which trial` unicore/comments
