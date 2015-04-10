@@ -3,6 +3,7 @@ from uuid import uuid4
 from sqlalchemy import (Column, Integer, Unicode, MetaData, Table, Index,
                         DateTime, ForeignKey, Boolean, and_)
 from sqlalchemy.inspection import inspect
+from sqlalchemy.sql import func
 from sqlalchemy_utils import UUIDType, URLType
 from twisted.internet.defer import inlineCallbacks, returnValue
 
@@ -17,6 +18,8 @@ COMMENT_MODERATION_STATES = (
     (u'removed_for_profanity', u'Removed for profanity'))
 
 FLAG_TABLE_NAME = 'flags'
+
+BANNED_USERS_TABLE_NAME = 'banned_users'
 
 
 metadata = MetaData()
@@ -173,3 +176,16 @@ class Flag(RowObjectMixin):
         Index('flag_app_index', 'app_uuid')
     )
     __table__ = flags
+
+
+class BannedUser(RowObjectMixin):
+    banned_users = Table(
+        BANNED_USERS_TABLE_NAME, metadata,
+        # Identifiers
+        Column('user_uuid', UUIDType(binary=False), primary_key=True),
+        Column(
+            'app_id', UUIDType(binary=False), primary_key=True, nullable=True),
+        Column(
+            'created', DateTime(timezone=True), server_default=func.now())
+    )
+    __table__ = banned_users
