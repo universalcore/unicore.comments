@@ -5,8 +5,9 @@ from twisted.internet.defer import inlineCallbacks, returnValue
 from werkzeug.exceptions import NotFound, BadRequest
 
 from unicore.comments.service import db, app
-from unicore.comments.service.views import (
-    make_json_response, deserialize_or_raise, pagination)
+from unicore.comments.service.views.base import (
+    make_json_response, deserialize_or_raise)
+from unicore.comments.service.views import pagination
 from unicore.comments.service.models import Comment
 from unicore.comments.service.schema import Comment as CommentSchema
 from unicore.comments.service.views.filtering import FilterSchema, ALL

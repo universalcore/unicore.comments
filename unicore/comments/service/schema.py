@@ -96,3 +96,13 @@ class Flag(colander.MappingSchema):
     app_uuid = colander.SchemaNode(UUIDType())
     submit_datetime = colander.SchemaNode(
         colander.DateTime())
+
+
+class BannedUser(colander.MappingSchema):
+    user_uuid = colander.SchemaNode(
+        UUIDType(),
+        validator=vlds.known_uuid_validator('user_uuid'))
+    app_uuid = colander.SchemaNode(
+        UUIDType(),
+        missing=None,
+        validator=vlds.known_uuid_validator('app_uuid'))

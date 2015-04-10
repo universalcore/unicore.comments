@@ -6,13 +6,12 @@ import uuid
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql.expression import exists
 
-from unicore.comments.service import app, resource
+from unicore.comments.service import app, resource, views  # noqa
 from unicore.comments.service.tests import BaseTestCase, _render, requestMock
 from unicore.comments.service.models import Comment, Flag
 from unicore.comments.service.tests.test_schema import comment_data, flag_data
 from unicore.comments.service.schema import (
     Comment as CommentSchema, Flag as FlagSchema)
-from unicore.comments.service.views import comments, flags  # noqa
 
 
 class ViewTestCase(BaseTestCase):

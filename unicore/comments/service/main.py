@@ -4,9 +4,8 @@ import argparse
 import yaml
 from twisted.internet import reactor
 
-from unicore.comments.service import db, app
+from unicore.comments.service import db, app, views  # noqa
 from unicore.comments.service.config import Config
-from unicore.comments.service.views import comments, flags  # noqa
 
 
 def configure_app():
