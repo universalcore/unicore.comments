@@ -106,3 +106,6 @@ class BannedUser(colander.MappingSchema):
         UUIDType(),
         missing=None,
         validator=vlds.known_uuid_validator('app_uuid'))
+    created = colander.SchemaNode(
+        colander.DateTime(),
+        missing=colander.drop)

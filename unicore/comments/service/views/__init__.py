@@ -1,8 +1,8 @@
-from unicore.comments.service.views import comments, flags, moderation
+from unicore.comments.service.views import comments, flags, bannedusers
 
 
 __all__ = [
     'comments',
     'flags',
-    'moderation'
+    'bannedusers'
 ]
