@@ -2,16 +2,20 @@ import json
 from datetime import datetime, timedelta
 import pytz
 import uuid
+from unittest import SkipTest
 
+from sqlalchemy import and_
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql.expression import exists
 
 from unicore.comments.service import app, resource, views  # noqa
 from unicore.comments.service.tests import BaseTestCase, _render, requestMock
-from unicore.comments.service.models import Comment, Flag
-from unicore.comments.service.tests.test_schema import comment_data, flag_data
+from unicore.comments.service.models import Comment, Flag, BannedUser
+from unicore.comments.service.tests.test_schema import (
+    comment_data, flag_data, banneduser_data)
 from unicore.comments.service.schema import (
-    Comment as CommentSchema, Flag as FlagSchema)
+    Comment as CommentSchema, Flag as FlagSchema,
+    BannedUser as BannedUserSchema)
 
 
 class ViewTestCase(BaseTestCase):
@@ -76,10 +80,15 @@ class CRUDTests(object):
         return self.detail_url % data
 
     def queryExists(self, data):
+        try:
+            expression = self.model_class._pk_expression(data)
+        except KeyError:
+            expression = [self.model_class.__table__.c[k] == v
+                          for k, v in data.iteritems()]
+            expression = and_(*expression)
+
         exists_query = self.model_class.__table__ \
-            .select(
-                exists().where(self.model_class._pk_expression(data))
-            )
+            .select(exists().where(expression))
         result = self.successResultOf(self.connection.execute(exists_query))
         result = self.successResultOf(result.scalar())
         return result
@@ -215,7 +224,7 @@ class FlagCRUDTestCase(ViewTestCase, CRUDTests):
 
         # check that inserting duplicate fails
         request = self.post(self.base_url, self.instance_data)
-        self.assertEqual(request.code, 400)
+        self.assertEqual(request.code, 200)
 
         # check that inserting flag without existing comment fails
         data = self.instance_data.copy()
@@ -230,6 +239,40 @@ class FlagCRUDTestCase(ViewTestCase, CRUDTests):
         comment = self.successResultOf(Comment.get_by_pk(
             self.connection, uuid=self.comment.get('uuid')))
         self.assertEqual(comment.get('flag_count'), -1)
+
+
+class BannedUserCRUDTestCase(ViewTestCase, CRUDTests):
+    base_url = '/bannedusers/'
+    detail_url = '/bannedusers/%(user_uuid)s/%(app_uuid)s/'
+    model_class = BannedUser
+    instance_data = banneduser_data
+    schema = BannedUserSchema().bind()
+
+    def test_update(self):
+        raise SkipTest('No update endpoint implemented')
+
+    def test_delete_all_apps(self):
+        serialized_data = {
+            'count': 5,
+            'objects': [],
+        }
+        for i in range(5):
+            data = self.instance_data.copy()
+            data['app_uuid'] = uuid.uuid4().hex
+            user = BannedUser(self.connection, data)
+            self.successResultOf(user.insert())
+            user_serialized = self.schema.serialize(user.to_dict())
+            serialized_data['objects'].append(user_serialized)
+
+        request = self.delete(
+            '/bannedusers/%(user_uuid)s/' % self.instance_data)
+        response_data = json.loads(request.getWrittenData())
+        count = self.successResultOf(
+            self.connection.execute(BannedUser.__table__.count()))
+        count = self.successResultOf(count.scalar())
+
+        self.assertEqual(response_data, serialized_data)
+        self.assertEqual(count, 0)
 
 
 class CommentListTestCase(ViewTestCase, ListTests):

@@ -9,7 +9,7 @@ from klein.test.test_resource import requestMock as baseRequestMock, _render
 
 from unicore.comments.service.config import Config
 from unicore.comments.service import db
-from unicore.comments.service.models import Comment, Flag
+from unicore.comments.service.models import metadata
 
 
 test_dir = os.path.dirname(__file__)
@@ -48,14 +48,22 @@ class BaseTestCase(TestCase):
         self.engine = db.get_engine(self.config, FakeReactorThreads())
         self.connection = self.successResultOf(self.engine.connect())
 
-        for model in (Comment, Flag):
+        self.successResultOf(
+            self.connection.execute(CreateTable(metadata.tables['comments'])))
+        for name, table in metadata.tables.iteritems():
+            if name == 'comments':
+                continue
             self.successResultOf(
-                self.connection.execute(CreateTable(model.__table__)))
+                self.connection.execute(CreateTable(table)))
 
     def tearDown(self):
-        for model in (Flag, Comment):
+        for name, table in metadata.tables.iteritems():
+            if name == 'comments':
+                continue
             self.successResultOf(
-                self.connection.execute(DropTable(model.__table__)))
+                self.connection.execute(DropTable(table)))
+        self.successResultOf(
+            self.connection.execute(DropTable(metadata.tables['comments'])))
 
         self.successResultOf(self.connection.close())
 

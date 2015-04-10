@@ -47,7 +47,7 @@ def get_banneduser(request, user_uuid, app_uuid):
 
     try:
         connection = yield app.db_engine.connect()
-        user = yield BannedUser.get_by_pk(
+        user = yield BannedUser.get_one(
             connection, user_uuid=user_uuid, app_uuid=app_uuid)
     finally:
         connection.close()
@@ -69,12 +69,13 @@ def delete_banneduser(request, user_uuid, app_uuid, connection):
     except ValueError:
         raise NotFound
 
-    user = BannedUser(
-        connection, {'user_uuid': user_uuid, 'app_uuid': app_uuid})
-    count = yield user.delete()
+    user = yield BannedUser.get_one(
+        connection, user_uuid=user_uuid, app_uuid=app_uuid)
 
-    if count == 0:
+    if user is None:
         raise NotFound
+
+    yield user.delete()
 
     returnValue(make_json_response(
         request, user.to_dict(), schema=banneduser_schema))

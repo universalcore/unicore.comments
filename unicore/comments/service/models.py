@@ -1,7 +1,7 @@
 from uuid import uuid4
 
 from sqlalchemy import (Column, Integer, Unicode, MetaData, Table, Index,
-                        DateTime, ForeignKey, Boolean, and_)
+                        DateTime, ForeignKey, Boolean, and_, UniqueConstraint)
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import func
 from sqlalchemy_utils import UUIDType, URLType
@@ -118,9 +118,20 @@ class RowObjectMixin(object):
         except KeyError:
             raise KeyError('All primary keys need to be provided')
 
+        result = yield cls.get_one(connection, expression=pk_expression)
+        returnValue(result)
+
+    @classmethod
+    @inlineCallbacks
+    def get_one(cls, connection, expression=None, **kwargs):
+        if expression is None:
+            expression = [cls.__table__.c[k] == v
+                          for k, v in kwargs.iteritems()]
+            expression = and_(*expression)
+
         query = cls.__table__ \
             .select() \
-            .where(pk_expression)
+            .where(expression)
         result = yield connection.execute(query)
         result = yield result.first()
         if result is not None:
@@ -182,10 +193,13 @@ class BannedUser(RowObjectMixin):
     banned_users = Table(
         BANNED_USERS_TABLE_NAME, metadata,
         # Identifiers
-        Column('user_uuid', UUIDType(binary=False), primary_key=True),
+        Column('id', Integer, primary_key=True),
+        Column('user_uuid', UUIDType(binary=False), nullable=False),
+        Column('app_uuid', UUIDType(binary=False), nullable=True),
         Column(
-            'app_id', UUIDType(binary=False), primary_key=True, nullable=True),
-        Column(
-            'created', DateTime(timezone=True), server_default=func.now())
+            'created', DateTime(timezone=True), server_default=func.now()),
+        Index('banneduser_user_index', 'user_uuid'),
+        Index('banneduser_app_index', 'app_uuid'),
+        UniqueConstraint('user_uuid', 'app_uuid')
     )
     __table__ = banned_users
