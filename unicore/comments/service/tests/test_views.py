@@ -256,11 +256,16 @@ class BannedUserCRUDTestCase(ViewTestCase, CRUDTests):
             'count': 5,
             'objects': [],
         }
-        for i in range(5):
+        for i in range(6):
             data = self.instance_data.copy()
+            # insert a user that won't be deleted
+            if i == 0:
+                data['user_uuid'] = uuid.uuid4().hex
             data['app_uuid'] = uuid.uuid4().hex
             user = BannedUser(self.connection, data)
             self.successResultOf(user.insert())
+            if i == 0:
+                continue
             user_serialized = self.schema.serialize(user.to_dict())
             serialized_data['objects'].append(user_serialized)
 
@@ -272,7 +277,7 @@ class BannedUserCRUDTestCase(ViewTestCase, CRUDTests):
         count = self.successResultOf(count.scalar())
 
         self.assertEqual(response_data, serialized_data)
-        self.assertEqual(count, 0)
+        self.assertEqual(count, 1)
 
 
 class CommentListTestCase(ViewTestCase, ListTests):
