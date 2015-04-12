@@ -21,7 +21,7 @@ FLAG_TABLE_NAME = 'flags'
 
 BANNED_USERS_TABLE_NAME = 'banned_users'
 
-STREAM_SETTINGS_TABLE_NAME = 'stream_settings'
+STREAM_METADATA_TABLE_NAME = 'stream_metadata'
 
 
 metadata = MetaData()
@@ -223,13 +223,13 @@ class BannedUser(RowObjectMixin):
     __table__ = banned_users
 
 
-class StreamSettings(RowObjectMixin):
-    stream_settings = Table(
-        STREAM_SETTINGS_TABLE_NAME, metadata,
+class StreamMetadata(RowObjectMixin):
+    stream_metadata = Table(
+        STREAM_METADATA_TABLE_NAME, metadata,
         # Identifiers
         Column('app_uuid', UUIDType(binary=False), primary_key=True),
         Column('content_uuid', UUIDType(binary=False), primary_key=True),
         # Other
-        Column('settings', JSONType())
+        Column('metadata', JSONType())
     )
-    __table__ = stream_settings
+    __table__ = stream_metadata
