@@ -200,6 +200,28 @@ class CommentCRUDTestCase(ViewTestCase, CRUDTests):
     instance_data = comment_data
     schema = CommentSchema().bind()
 
+    def test_create(self):
+        super(CommentCRUDTestCase, self).test_create()
+
+        comment_data = self.without_pk_fields(self.instance_data)
+
+        # check that banned user comment is rejected
+        user_data = {
+            'user_uuid': comment_data['user_uuid'],
+            'app_uuid': comment_data['app_uuid']
+        }
+        user = BannedUser(self.connection, user_data)
+        self.successResultOf(user.insert())
+
+        request = self.post(self.base_url, comment_data)
+        self.assertEqual(request.code, 403)
+
+        user.set('app_uuid', None)
+        self.successResultOf(user.update())
+
+        request = self.post(self.base_url, comment_data)
+        self.assertEqual(request.code, 403)
+
 
 class FlagCRUDTestCase(ViewTestCase, CRUDTests):
     base_url = '/flags/'
