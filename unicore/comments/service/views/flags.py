@@ -51,6 +51,7 @@ def create_flag(request, connection):
     try:
         yield flag.insert()
     except IntegrityError:  # already exists
+        # NOTE: IntegrityError rolls back transaction
         request.setResponseCode(200)
     else:
         request.setResponseCode(201)

@@ -246,7 +246,10 @@ class FlagCRUDTestCase(ViewTestCase, CRUDTests):
 
         # check that inserting duplicate fails
         request = self.post(self.base_url, self.instance_data)
+        comment = self.successResultOf(Comment.get_by_pk(
+            self.connection, uuid=self.comment.get('uuid')))
         self.assertEqual(request.code, 200)
+        self.assertEqual(comment.get('flag_count'), 1)
 
         # check that inserting flag without existing comment fails
         data = self.instance_data.copy()
