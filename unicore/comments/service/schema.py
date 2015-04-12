@@ -109,3 +109,15 @@ class BannedUser(colander.MappingSchema):
     created = colander.SchemaNode(
         colander.DateTime(),
         missing=colander.drop)
+
+
+class StreamMetadata(colander.MappingSchema):
+    app_uuid = colander.SchemaNode(
+        UUIDType(),
+        validator=vlds.known_uuid_validator('app_uuid'))
+    content_uuid = colander.SchemaNode(
+        UUIDType(),
+        validator=vlds.known_uuid_validator('content_uuid'))
+    metadata = colander.SchemaNode(
+        colander.Mapping(unknown='preserve'),
+        missing={})

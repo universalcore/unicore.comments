@@ -7,10 +7,13 @@ import colander
 
 from unicore.comments.service.models import (
     COMMENT_MAX_LENGTH, COMMENT_CONTENT_TYPES, COMMENT_MODERATION_STATES)
-from unicore.comments.service.schema import Comment, Flag, BannedUser
+from unicore.comments.service.schema import (
+    Comment, Flag, BannedUser, StreamMetadata)
 from unicore.comments.service.tests.test_models import (
-    comment_data as comment_model_data, flag_data as flag_model_data,
-    banneduser_data as banneduser_model_data)
+    comment_data as comment_model_data,
+    flag_data as flag_model_data,
+    banneduser_data as banneduser_model_data,
+    streammetadata_data as streammetadata_model_data)
 
 
 def simple_serialize(data):
@@ -24,6 +27,8 @@ def simple_serialize(data):
             data[key] = value.isoformat()
         elif isinstance(value, uuid.UUID):
             data[key] = value.hex
+        elif isinstance(value, dict):
+            data[key] = value.copy()
         else:
             data[key] = unicode(value)
 
@@ -31,9 +36,10 @@ def simple_serialize(data):
 comment_data = comment_model_data.copy()
 flag_data = flag_model_data.copy()
 banneduser_data = banneduser_model_data.copy()
-simple_serialize(comment_data)
-simple_serialize(flag_data)
-simple_serialize(banneduser_data)
+streammetadata_data = streammetadata_model_data.copy()
+
+for data in (comment_data, flag_data, banneduser_data, streammetadata_data):
+    simple_serialize(data)
 
 
 class CommentTestCase(TestCase):
@@ -144,6 +150,24 @@ class BannedUserTestCase(TestCase):
         schema = BannedUser().bind()
         clean = schema.serialize(banneduser_model_data)
         self.assertEqual(clean, banneduser_data)
+
+
+class StreamMetadataTestCase(TestCase):
+
+    def test_deserialize(self):
+        schema = StreamMetadata().bind()
+        clean = schema.deserialize(streammetadata_data)
+        self.assertEqual(clean, streammetadata_model_data)
+
+        copy = streammetadata_data.copy()
+        del copy['metadata']
+        clean = schema.deserialize(copy)
+        self.assertEqual(clean.get('metadata', None), {})
+
+    def test_serialize(self):
+        schema = StreamMetadata().bind()
+        clean = schema.serialize(streammetadata_model_data)
+        self.assertEqual(clean, streammetadata_data)
 
 
 class ValidatorTestCase(TestCase):
