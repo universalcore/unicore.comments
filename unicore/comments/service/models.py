@@ -4,7 +4,7 @@ from sqlalchemy import (Column, Integer, Unicode, MetaData, Table, Index,
                         DateTime, ForeignKey, Boolean, and_, UniqueConstraint)
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql import func, exists
-from sqlalchemy_utils import UUIDType, URLType
+from sqlalchemy_utils import UUIDType, URLType, JSONType
 from twisted.internet.defer import inlineCallbacks, returnValue
 
 
@@ -20,6 +20,8 @@ COMMENT_MODERATION_STATES = (
 FLAG_TABLE_NAME = 'flags'
 
 BANNED_USERS_TABLE_NAME = 'banned_users'
+
+STREAM_SETTINGS_TABLE_NAME = 'stream_settings'
 
 
 metadata = MetaData()
@@ -211,6 +213,7 @@ class BannedUser(RowObjectMixin):
         Column('id', Integer, primary_key=True),
         Column('user_uuid', UUIDType(binary=False), nullable=False),
         Column('app_uuid', UUIDType(binary=False), nullable=True),
+        # Other
         Column(
             'created', DateTime(timezone=True), server_default=func.now()),
         Index('banneduser_user_index', 'user_uuid'),
@@ -218,3 +221,15 @@ class BannedUser(RowObjectMixin):
         UniqueConstraint('user_uuid', 'app_uuid')
     )
     __table__ = banned_users
+
+
+class StreamSettings(RowObjectMixin):
+    stream_settings = Table(
+        STREAM_SETTINGS_TABLE_NAME, metadata,
+        # Identifiers
+        Column('app_uuid', UUIDType(binary=False), primary_key=True),
+        Column('content_uuid', UUIDType(binary=False), primary_key=True),
+        # Other
+        Column('settings', JSONType())
+    )
+    __table__ = stream_settings
