@@ -163,6 +163,18 @@ class ModelTests(object):
         obj = self.model_class(self.connection, self.instance_data)
         self.assertEqual(self.instance_data, obj.to_dict())
 
+    def test_exists(self):
+        does_exist = self.successResultOf(
+            self.model_class.exists(self.connection, **self.instance_data))
+        self.assertFalse(does_exist)
+
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
+
+        does_exist = self.successResultOf(
+            self.model_class.exists(self.connection, **self.instance_data))
+        self.assertTrue(does_exist)
+
 
 class CommentTestCase(BaseTestCase, ModelTests):
     model_class = Comment

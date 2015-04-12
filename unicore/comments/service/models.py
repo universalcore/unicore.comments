@@ -3,7 +3,7 @@ from uuid import uuid4
 from sqlalchemy import (Column, Integer, Unicode, MetaData, Table, Index,
                         DateTime, ForeignKey, Boolean, and_, UniqueConstraint)
 from sqlalchemy.inspection import inspect
-from sqlalchemy.sql import func
+from sqlalchemy.sql import func, exists
 from sqlalchemy_utils import UUIDType, URLType
 from twisted.internet.defer import inlineCallbacks, returnValue
 
@@ -52,6 +52,12 @@ class RowObjectMixin(object):
     @property
     def pk_expression(self):
         return self.__class__._pk_expression(self.row_dict)
+
+    @classmethod
+    def match_all_expression(cls, **kwargs):
+        expression = [cls.__table__.c[k] == v
+                      for k, v in kwargs.iteritems()]
+        return and_(*expression)
 
     def to_dict(self):
         return dict(
@@ -125,9 +131,7 @@ class RowObjectMixin(object):
     @inlineCallbacks
     def get_one(cls, connection, expression=None, **kwargs):
         if expression is None:
-            expression = [cls.__table__.c[k] == v
-                          for k, v in kwargs.iteritems()]
-            expression = and_(*expression)
+            expression = cls.match_all_expression(**kwargs)
 
         query = cls.__table__ \
             .select() \
@@ -137,6 +141,17 @@ class RowObjectMixin(object):
         if result is not None:
             result = cls(connection, result)
         returnValue(result)
+
+    @classmethod
+    @inlineCallbacks
+    def exists(cls, connection, expression=None, **kwargs):
+        if expression is None:
+            expression = cls.match_all_expression(**kwargs)
+
+        query = cls.__table__.select(exists().where(expression))
+        result = yield connection.execute(query)
+        result = yield result.scalar()
+        returnValue(bool(result))
 
 
 class Comment(RowObjectMixin):
