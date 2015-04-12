@@ -1,8 +1,10 @@
-from unicore.comments.service.views import comments, flags, bannedusers
+from unicore.comments.service.views import (
+    comments, flags, bannedusers, streammetadata)
 
 
 __all__ = [
     'comments',
     'flags',
-    'bannedusers'
+    'bannedusers',
+    'streammetadata'
 ]

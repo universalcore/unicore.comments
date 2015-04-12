@@ -10,12 +10,14 @@ from sqlalchemy.sql.expression import exists
 
 from unicore.comments.service import app, resource, views  # noqa
 from unicore.comments.service.tests import BaseTestCase, _render, requestMock
-from unicore.comments.service.models import Comment, Flag, BannedUser
+from unicore.comments.service.models import (
+    Comment, Flag, BannedUser, StreamMetadata)
 from unicore.comments.service.tests.test_schema import (
-    comment_data, flag_data, banneduser_data)
+    comment_data, flag_data, banneduser_data, streammetadata_data)
 from unicore.comments.service.schema import (
     Comment as CommentSchema, Flag as FlagSchema,
-    BannedUser as BannedUserSchema)
+    BannedUser as BannedUserSchema,
+    StreamMetadata as StreamMetadataSchema)
 
 
 class ViewTestCase(BaseTestCase):
@@ -272,6 +274,7 @@ class BannedUserCRUDTestCase(ViewTestCase, CRUDTests):
     model_class = BannedUser
     instance_data = banneduser_data
     schema = BannedUserSchema().bind()
+    autogenerate_pk_fields = False
 
     def test_update(self):
         raise SkipTest('No update endpoint implemented')
@@ -303,6 +306,51 @@ class BannedUserCRUDTestCase(ViewTestCase, CRUDTests):
 
         self.assertEqual(response_data, serialized_data)
         self.assertEqual(count, 1)
+
+
+class StreamMetadataCRUDTestCase(ViewTestCase, CRUDTests):
+    base_url = '/streammetadata/'
+    detail_url = '/streammetadata/%(app_uuid)s/%(content_uuid)s/'
+    model_class = StreamMetadata
+    instance_data = streammetadata_data
+    schema = StreamMetadataSchema().bind()
+
+    def test_create(self):
+        raise SkipTest('No create endpoint implemented')
+
+    def test_delete(self):
+        raise SkipTest('No delete endpoint implemented')
+
+    def test_read(self):
+        request = self.get(self.get_detail_url(self.instance_data))
+        self.assertEqual(request.code, 200)
+        self.assertEqual(json.loads(request.getWrittenData())['metadata'], {})
+
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
+        request = self.get(self.get_detail_url(self.instance_data))
+
+        self.assertEqual(request.code, 200)
+        self.assertEqual(
+            self.schema.deserialize(self.instance_data),
+            self.schema.deserialize(json.loads(request.getWrittenData())))
+
+    def test_update(self):
+        data = self.instance_data.copy()
+        request = self.put(self.get_detail_url(data), data)
+
+        self.assertEqual(request.code, 200)
+        self.assertEqual(
+            self.schema.deserialize(data),
+            self.schema.deserialize(json.loads(request.getWrittenData())))
+
+        data['metadata'] = {'something': 'else'}
+        request = self.put(self.get_detail_url(data), data)
+
+        self.assertEqual(request.code, 200)
+        self.assertEqual(
+            self.schema.deserialize(data),
+            self.schema.deserialize(json.loads(request.getWrittenData())))
 
 
 class CommentListTestCase(ViewTestCase, ListTests):
