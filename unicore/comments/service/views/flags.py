@@ -7,12 +7,19 @@ from sqlalchemy.exc import IntegrityError
 
 from unicore.comments.service import db, app
 from unicore.comments.service.views import (
-    make_json_response, deserialize_or_raise)
+    make_json_response, deserialize_or_raise, pagination)
 from unicore.comments.service.models import Flag, Comment
 from unicore.comments.service.schema import Flag as FlagSchema
+from unicore.comments.service.views.filtering import FilterSchema, ALL
 
 
 schema = FlagSchema()
+flag_filters = FilterSchema.from_schema(schema, {
+    'comment_uuid': ALL,
+    'user_uuid': ALL,
+    'app_uuid': ALL,
+    'submit_datetime': ALL
+})
 
 
 '''
@@ -61,10 +68,12 @@ def view_flag(request, comment_uuid, user_uuid):
     except ValueError:
         raise NotFound
 
-    connection = yield app.db_engine.connect()
-    flag = yield Flag.get_by_pk(
-        connection, comment_uuid=comment_uuid, user_uuid=user_uuid)
-    yield connection.close()
+    try:
+        connection = yield app.db_engine.connect()
+        flag = yield Flag.get_by_pk(
+            connection, comment_uuid=comment_uuid, user_uuid=user_uuid)
+    finally:
+        yield connection.close()
 
     if flag is None:
         raise NotFound
@@ -115,5 +124,33 @@ def delete_flag(request, comment_uuid, user_uuid, connection):
 
 
 '''
-TODO: Flag collection resource
+Flag collection resource
 '''
+
+
+@app.route('/flags/', methods=['GET'])
+@inlineCallbacks
+def list_flags(request):
+    columns = Flag.__table__.c
+    filter_expr = flag_filters.get_filter_expression(request.args, columns)
+
+    query = Flag.__table__ \
+        .select() \
+        .where(filter_expr) \
+        .order_by(columns.submit_datetime.desc())
+    query, limit, offset = pagination.paginate(request.args, query)
+
+    try:
+        connection = yield app.db_engine.connect()
+        result = yield connection.execute(query)
+        result = yield result.fetchall()
+    finally:
+        yield connection.close()
+
+    data = {
+        'offset': offset,
+        'limit': limit,
+        'count': len(result),
+        'objects': [schema.serialize(row) for row in result]
+    }
+    returnValue(make_json_response(request, data))

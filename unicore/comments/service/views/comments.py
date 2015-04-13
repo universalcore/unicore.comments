@@ -1,17 +1,31 @@
 from uuid import UUID
 
+from sqlalchemy import or_, and_
 from twisted.internet.defer import inlineCallbacks, returnValue
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import NotFound, BadRequest
 
 from unicore.comments.service import db, app
 from unicore.comments.service.views import (
-    make_json_response, deserialize_or_raise)
+    make_json_response, deserialize_or_raise, pagination)
 from unicore.comments.service.models import Comment
 from unicore.comments.service.schema import Comment as CommentSchema
+from unicore.comments.service.views.filtering import FilterSchema, ALL
 
 
 schema = CommentSchema()
 schema_all = CommentSchema(include_all=True)
+comment_filters = FilterSchema.from_schema(schema_all, {
+    'content_uuid': ALL,
+    'content_type': ALL,
+    'content_title': ALL,
+    'user_uuid': ALL,
+    'user_name': ALL,
+    'app_uuid': ALL,
+    'submit_datetime': ALL,
+    'is_removed': ALL,
+    'moderation_state': ALL,
+    'flag_count': ALL
+})
 
 
 '''
@@ -40,9 +54,11 @@ def view_comment(request, uuid):
     except ValueError:
         raise NotFound
 
-    connection = yield app.db_engine.connect()
-    comment = yield Comment.get_by_pk(connection, uuid=uuid)
-    yield connection.close()
+    try:
+        connection = yield app.db_engine.connect()
+        comment = yield Comment.get_by_pk(connection, uuid=uuid)
+    finally:
+        yield connection.close()
 
     if comment is None:
         raise NotFound
@@ -86,5 +102,54 @@ def delete_comment(request, uuid, connection):
 
 
 '''
-TODO: Comment collection resource
+Comment collection resource
 '''
+
+
+@app.route('/comments/', methods=['GET'])
+@inlineCallbacks
+def list_comments(request):
+    columns = Comment.__table__.c
+    filter_expr = comment_filters.get_filter_expression(request.args, columns)
+
+    # NOTE: orders on submit_datetime, then uuid
+    # this is to ensure an absolute ordering
+    query = Comment.__table__ \
+        .select() \
+        .where(filter_expr) \
+        .order_by(columns.submit_datetime.desc(),
+                  columns.uuid)
+    query, limit, offset = pagination.paginate(request.args, query)
+
+    try:
+        after_uuid = request.args.get('after', [None])[0]
+        after_uuid = UUID(after_uuid) if after_uuid else None
+    except ValueError:
+        raise BadRequest('after is not a valid hexadecimal UUID')
+
+    try:
+        connection = yield app.db_engine.connect()
+
+        if after_uuid:
+            last = yield Comment.get_by_pk(connection, uuid=after_uuid)
+            if last is not None:
+                query = query.where(or_(
+                    columns.submit_datetime > last.get('submit_datetime'),
+                    and_(
+                        columns.submit_datetime == last.get('submit_datetime'),
+                        columns.uuid > last.get('uuid'))
+                    ))
+
+        result = yield connection.execute(query)
+        result = yield result.fetchall()
+    finally:
+        yield connection.close()
+
+    data = {
+        'offset': offset,
+        'limit': limit,
+        'after': after_uuid.hex if after_uuid else None,
+        'count': len(result),
+        'objects': [schema_all.serialize(row) for row in result]
+    }
+    returnValue(make_json_response(request, data))
