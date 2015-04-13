@@ -3,7 +3,6 @@ from itertools import chain
 
 from twisted.internet.defer import inlineCallbacks, returnValue
 from werkzeug.exceptions import NotFound
-from sqlalchemy.sql import or_
 
 from unicore.comments.service import db, app
 from unicore.comments.service.views.base import (
