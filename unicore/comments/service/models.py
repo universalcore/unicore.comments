@@ -1,8 +1,9 @@
 from uuid import uuid4
 
 from sqlalchemy import (Column, Integer, Unicode, MetaData, Table, Index,
-                        DateTime, ForeignKey, Boolean, and_)
+                        DateTime, ForeignKey, Boolean, and_, UniqueConstraint)
 from sqlalchemy.inspection import inspect
+from sqlalchemy.sql import func, exists
 from sqlalchemy_utils import UUIDType, URLType
 from twisted.internet.defer import inlineCallbacks, returnValue
 
@@ -17,6 +18,8 @@ COMMENT_MODERATION_STATES = (
     (u'removed_for_profanity', u'Removed for profanity'))
 
 FLAG_TABLE_NAME = 'flags'
+
+BANNED_USERS_TABLE_NAME = 'banned_users'
 
 
 metadata = MetaData()
@@ -49,6 +52,12 @@ class RowObjectMixin(object):
     @property
     def pk_expression(self):
         return self.__class__._pk_expression(self.row_dict)
+
+    @classmethod
+    def match_all_expression(cls, **kwargs):
+        expression = [cls.__table__.c[k] == v
+                      for k, v in kwargs.iteritems()]
+        return and_(*expression)
 
     def to_dict(self):
         return dict(
@@ -115,14 +124,34 @@ class RowObjectMixin(object):
         except KeyError:
             raise KeyError('All primary keys need to be provided')
 
+        result = yield cls.get_one(connection, expression=pk_expression)
+        returnValue(result)
+
+    @classmethod
+    @inlineCallbacks
+    def get_one(cls, connection, expression=None, **kwargs):
+        if expression is None:
+            expression = cls.match_all_expression(**kwargs)
+
         query = cls.__table__ \
             .select() \
-            .where(pk_expression)
+            .where(expression)
         result = yield connection.execute(query)
         result = yield result.first()
         if result is not None:
             result = cls(connection, result)
         returnValue(result)
+
+    @classmethod
+    @inlineCallbacks
+    def exists(cls, connection, expression=None, **kwargs):
+        if expression is None:
+            expression = cls.match_all_expression(**kwargs)
+
+        query = cls.__table__.select(exists().where(expression))
+        result = yield connection.execute(query)
+        result = yield result.scalar()
+        returnValue(bool(result))
 
 
 class Comment(RowObjectMixin):
@@ -173,3 +202,19 @@ class Flag(RowObjectMixin):
         Index('flag_app_index', 'app_uuid')
     )
     __table__ = flags
+
+
+class BannedUser(RowObjectMixin):
+    banned_users = Table(
+        BANNED_USERS_TABLE_NAME, metadata,
+        # Identifiers
+        Column('id', Integer, primary_key=True),
+        Column('user_uuid', UUIDType(binary=False), nullable=False),
+        Column('app_uuid', UUIDType(binary=False), nullable=True),
+        Column(
+            'created', DateTime(timezone=True), server_default=func.now()),
+        Index('banneduser_user_index', 'user_uuid'),
+        Index('banneduser_app_index', 'app_uuid'),
+        UniqueConstraint('user_uuid', 'app_uuid')
+    )
+    __table__ = banned_users

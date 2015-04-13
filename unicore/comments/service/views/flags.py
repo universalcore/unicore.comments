@@ -6,8 +6,9 @@ from werkzeug.exceptions import NotFound
 from sqlalchemy.exc import IntegrityError
 
 from unicore.comments.service import db, app
-from unicore.comments.service.views import (
-    make_json_response, deserialize_or_raise, pagination)
+from unicore.comments.service.views.base import (
+    make_json_response, deserialize_or_raise)
+from unicore.comments.service.views import pagination
 from unicore.comments.service.models import Flag, Comment
 from unicore.comments.service.schema import Flag as FlagSchema
 from unicore.comments.service.views.filtering import FilterSchema, ALL
@@ -49,13 +50,11 @@ def create_flag(request, connection):
     flag = Flag(connection, data)
     try:
         yield flag.insert()
-    except IntegrityError:
-        raise colander.Invalid(
-            schema.get('user_uuid'),
-            'Flag for comment %r and user %r already exists' %
-            (data['comment_uuid'].hex, data['user_uuid'].hex))
+    except IntegrityError:  # already exists
+        request.setResponseCode(200)
+    else:
+        request.setResponseCode(201)
 
-    request.setResponseCode(201)
     returnValue(make_json_response(request, flag.to_dict(), schema=schema))
 
 

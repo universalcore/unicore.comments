@@ -1,13 +1,15 @@
 from uuid import UUID
 
 from sqlalchemy import or_, and_
+from sqlalchemy.sql import exists
 from twisted.internet.defer import inlineCallbacks, returnValue
-from werkzeug.exceptions import NotFound, BadRequest
+from werkzeug.exceptions import NotFound, BadRequest, Forbidden
 
 from unicore.comments.service import db, app
-from unicore.comments.service.views import (
-    make_json_response, deserialize_or_raise, pagination)
-from unicore.comments.service.models import Comment
+from unicore.comments.service.views.base import (
+    make_json_response, deserialize_or_raise)
+from unicore.comments.service.views import pagination
+from unicore.comments.service.models import Comment, BannedUser
 from unicore.comments.service.schema import Comment as CommentSchema
 from unicore.comments.service.views.filtering import FilterSchema, ALL
 
@@ -28,6 +30,20 @@ comment_filters = FilterSchema.from_schema(schema_all, {
 })
 
 
+def is_banned_user(connection, user_uuid, app_uuid):
+    cols = BannedUser.__table__.c
+    expression = cols.user_uuid == user_uuid
+    expression = and_(
+        expression,
+        or_(cols.app_uuid == app_uuid, cols.app_uuid.is_(None)))
+
+    query = BannedUser.__table__.select(exists().where(expression))
+    d = connection.execute(query)
+    d.addCallback(lambda result: result.scalar())
+    d.addCallback(lambda count: bool(count))
+    return d
+
+
 '''
 Comment resource
 '''
@@ -38,6 +54,12 @@ Comment resource
 @inlineCallbacks
 def create_comment(request, connection):
     data = deserialize_or_raise(schema.bind(), request)
+
+    is_banned = yield is_banned_user(
+        connection, data['user_uuid'], data['app_uuid'])
+    if is_banned:
+        raise Forbidden('user is banned from commenting')
+
     comment = Comment(connection, data)
     yield comment.insert()
 

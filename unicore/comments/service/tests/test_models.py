@@ -9,7 +9,7 @@ from sqlalchemy.inspection import inspect
 
 from unicore.comments.service.tests import (BaseTestCase, mk_alembic_config,
                                             mk_config)
-from unicore.comments.service.models import Comment, Flag
+from unicore.comments.service.models import Comment, Flag, BannedUser
 
 
 comment_data = {
@@ -35,6 +35,11 @@ flag_data = {
     'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
     'submit_datetime': datetime.now(pytz.utc)
 }
+banneduser_data = {
+    'user_uuid': UUID('63f058d5de5143ecb455382bf654100c'),
+    'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
+    'created': datetime.now(pytz.utc),
+}
 
 
 class MigrationTestCase(TestCase):
@@ -53,7 +58,7 @@ class ModelTests(object):
         data_no_defaults = self.instance_data.copy()
         columns_with_defaults = []
         for column in self.model_class.__table__.c:
-            if column.default:
+            if column.default or column.server_default:
                 del data_no_defaults[column.name]
                 columns_with_defaults.append(column)
 
@@ -158,6 +163,18 @@ class ModelTests(object):
         obj = self.model_class(self.connection, self.instance_data)
         self.assertEqual(self.instance_data, obj.to_dict())
 
+    def test_exists(self):
+        does_exist = self.successResultOf(
+            self.model_class.exists(self.connection, **self.instance_data))
+        self.assertFalse(does_exist)
+
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
+
+        does_exist = self.successResultOf(
+            self.model_class.exists(self.connection, **self.instance_data))
+        self.assertTrue(does_exist)
+
 
 class CommentTestCase(BaseTestCase, ModelTests):
     model_class = Comment
@@ -172,3 +189,21 @@ class FlagTestCase(BaseTestCase, ModelTests):
         super(FlagTestCase, self).setUp()
         self.comment = Comment(self.connection, comment_data)
         self.successResultOf(self.comment.insert())
+
+
+class BannerUserTestCase(BaseTestCase, ModelTests):
+    model_class = BannedUser
+    instance_data = banneduser_data
+
+    def test_insert_without_app_uuid(self):
+        data_no_app_uuid = self.instance_data.copy()
+        del data_no_app_uuid['app_uuid']
+        obj = self.model_class(self.connection, data_no_app_uuid)
+        result = self.successResultOf(obj.insert())
+        self.assertEqual(result, 1)
+
+    def test_to_dict(self):
+        data = self.instance_data.copy()
+        data['id'] = 1
+        obj = self.model_class(self.connection, data)
+        self.assertEqual(data, obj.to_dict())
