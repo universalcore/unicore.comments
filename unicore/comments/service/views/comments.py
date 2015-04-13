@@ -138,7 +138,9 @@ def get_stream_metadata(request, connection):
     primary_key = primary_key.pop()
     d = StreamMetadata.get_by_pk(
         connection, app_uuid=primary_key[0], content_uuid=primary_key[1])
-    d.addCallback(lambda o: smd_schema.serialize(o.to_dict()).get('metadata'))
+    d.addCallback(
+        lambda o: smd_schema.serialize({}).get('metadata')
+        if o is None else smd_schema.serialize(o.to_dict()).get('metadata'))
     return d
 
 

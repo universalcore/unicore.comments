@@ -310,7 +310,25 @@ class CommentListTestCase(ViewTestCase, ListTests):
             [o.get('uuid').hex for o in objects_sorted[4:]])
 
     def test_metadata(self):
-        raise NotImplementedError
+        app_uuid = self.objects[0].get('app_uuid').hex
+        content_uuid = self.objects[0].get('content_uuid').hex
+
+        for url in ('/comments/',
+                    '/comments/?app_uuid=%s&content_uuid=%s' % (
+                        app_uuid, content_uuid),
+                    '/comments/?app_uuid=%s&content_uuid_in=%s,%s' % (
+                        app_uuid, content_uuid, uuid.uuid4().hex)):
+            data = self.get_json(url)
+            self.assertIn('metadata', data)
+            self.assertEqual(data['metadata'], {})
+
+        metadata = StreamMetadata(self.connection, streammetadata_data)
+        self.successResultOf(metadata.insert())
+
+        data = self.get_json('/comments/?app_uuid=%s&content_uuid=%s' % (
+            app_uuid, content_uuid))
+        self.assertIn('metadata', data)
+        self.assertEqual(data['metadata'], metadata.get('metadata'))
 
 
 class FlagListTestCase(ViewTestCase, ListTests):
