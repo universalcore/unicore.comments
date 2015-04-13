@@ -87,6 +87,13 @@ Stream Metadata collection resource
 '''
 
 
+def is_bounded(request):
+    return (('app_uuid' in request.args or
+             'app_uuid_in' in request.args) and
+            ('content_uuid' in request.args or
+             'content_uuid_in' in request.args))
+
+
 def get_stream_primary_keys(request):
     filter_data = streammetadata_filters.convert_lists(request.args)
     filter_data = streammetadata_filters.deserialize(filter_data)
@@ -98,25 +105,11 @@ def get_stream_primary_keys(request):
     if 'content_uuid' in filter_data:
         content_uuids.add(filter_data['content_uuid'])
 
-    # unbounded set
-    if not app_uuids or not content_uuids:
-        return None
-
-    # bounded set
-    pks = [{'app_uuid': a, 'content_uuid': c}
-           for a in app_uuids for c in content_uuids]
-    return pks
+    return set((a, c) for a in app_uuids for c in content_uuids)
 
 
 @inlineCallbacks
-def unbounded_list_streammetadata(request):
-    columns = StreamMetadata.__table__.c
-    filter_expr = streammetadata_filters.get_filter_expression(
-        request.args, columns)
-
-    query = StreamMetadata.__table__ \
-        .select() \
-        .where(filter_expr)
+def unbounded_list_streammetadata(request, query):
     query, limit, offset = pagination.paginate(request.args, query)
 
     try:
@@ -132,18 +125,11 @@ def unbounded_list_streammetadata(request):
         'count': len(result),
         'objects': [schema.serialize(row) for row in result]
     }
-    returnValue(make_json_response(request, data))
+    returnValue(data)
 
 
 @inlineCallbacks
-def bounded_list_streammetadata(request, primary_keys):
-    filter_expr = [StreamMetadata._pk_expression(pk) for pk in primary_keys]
-    filter_expr = or_(*filter_expr)
-
-    query = StreamMetadata.__table__ \
-        .select() \
-        .where(filter_expr)
-
+def bounded_list_streammetadata(request, query):
     try:
         connection = yield app.db_engine.connect()
         result = yield connection.execute(query)
@@ -151,39 +137,95 @@ def bounded_list_streammetadata(request, primary_keys):
     finally:
         connection.close()
 
-    all_pks_set = set(
-        [(pk['app_uuid'], pk['content_uuid']) for pk in primary_keys])
-    existing_pks_set = set(
-        [(d['app_uuid'], d['content_uuid']) for d in result])
-    non_db_objects = []
-    for pk in all_pks_set - existing_pks_set:
-        non_db_objects.append({
-            'app_uuid': pk[0],
-            'content_uuid': pk[1]})
+    existing_pks_set = set((d['app_uuid'], d['content_uuid']) for d in result)
+    primary_keys = get_stream_primary_keys(request)
+    non_db_objects = [dict(zip(('app_uuid', 'content_uuid'), pk))
+                      for pk in primary_keys - existing_pks_set]
 
     data = {
-        'count': len(all_pks_set),
+        'count': len(primary_keys),
         'objects': [schema.serialize(row)
                     for row in chain(result, non_db_objects)]
     }
-    returnValue(make_json_response(request, data))
+    returnValue(data)
 
 
 @app.route('/streammetadata/', methods=['GET'])
 @inlineCallbacks
 def list_streammetadata(request):
+    ''' If the set of streams specified by filters is bounded, i.e.
+    UUIDs for both app_uuid and content_uuid are specified, this endpoint
+    will return an object for each stream. If it is unbounded, i.e.
+    only one or neither of app_uuid and content_uuid is specified, it will
+    return only objects that are present in the database.
+    '''
+
+    columns = StreamMetadata.__table__.c
+    filter_expr = streammetadata_filters.get_filter_expression(
+        request.args, columns)
+
+    query = StreamMetadata.__table__ \
+        .select() \
+        .where(filter_expr)
+
+    view_func = (bounded_list_streammetadata if is_bounded(request)
+                 else unbounded_list_streammetadata)
+    data = yield view_func(request, query)
+    returnValue(make_json_response(request, data))
+
+
+@inlineCallbacks
+def unbounded_update_streammetadata(request, query, data, connection):
+    result = yield connection.execute(query)
+    data = {
+        'updated': result.rowcount,
+        'count': 1,
+        'objects': [schema_no_uuids.serialize(data)]
+    }
+    returnValue(data)
+
+
+@inlineCallbacks
+def bounded_update_streammetadata(request, query, data, connection):
+    # update and retrieve existing rows
+    query = query.returning(StreamMetadata.__table__.c.app_uuid,
+                            StreamMetadata.__table__.c.content_uuid)
+    result = yield connection.execute(query)
+    result = yield result.fetchall()
+
+    existing_pks_set = set((d['app_uuid'], d['content_uuid']) for d in result)
     primary_keys = get_stream_primary_keys(request)
-    if primary_keys is None:
-        resp = yield unbounded_list_streammetadata(request)
-    else:
-        resp = yield bounded_list_streammetadata(request, primary_keys)
-    returnValue(resp)
+    non_db_objects = [dict(
+        chain(zip(('app_uuid', 'content_uuid'), pk), data.iteritems()))
+        for pk in primary_keys - existing_pks_set]
+
+    # insert new rows
+    if non_db_objects:
+        query = StreamMetadata.__table__ \
+            .insert() \
+            .values(non_db_objects)
+        yield connection.execute(query)
+
+    data = {
+        'updated': len(primary_keys),
+        'count': 1,
+        'objects': [schema_no_uuids.serialize(data)]
+    }
+    returnValue(data)
 
 
-'''@app.route('/streammetadata/', methods=['PUT'])
+@app.route('/streammetadata/', methods=['PUT'])
 @db.in_transaction
 @inlineCallbacks
 def update_list_streammetadata(request, connection):
+    ''' If the set of streams specified by filters is bounded, i.e.
+    UUIDs for both app_uuid and content_uuid are specified, this endpoint
+    will update objects present in the database and insert new objects
+    as necessary. If it is unbounded, i.e. only one or neither of app_uuid
+    and content_uuid is specified, it will update only objects that are
+    present in the database.
+    '''
+
     data = deserialize_or_raise(schema_no_uuids.bind(), request)
     columns = StreamMetadata.__table__.c
     filter_expr = streammetadata_filters.get_filter_expression(
@@ -194,6 +236,7 @@ def update_list_streammetadata(request, connection):
         .where(filter_expr) \
         .values(**data)
 
-    result = yield connection.execute(query)
-    if result.rowcount > 0:
-        pass'''
+    view_func = (bounded_update_streammetadata if is_bounded(request)
+                 else unbounded_update_streammetadata)
+    data = yield view_func(request, query, data, connection)
+    returnValue(make_json_response(request, data))
