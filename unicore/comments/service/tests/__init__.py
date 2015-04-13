@@ -1,4 +1,5 @@
 import os
+import json
 from urlparse import urlparse, parse_qs
 
 from alembic.config import Config as AlembicConfig
@@ -8,7 +9,7 @@ from aludel.tests.doubles import FakeReactorThreads
 from klein.test.test_resource import requestMock as baseRequestMock, _render
 
 from unicore.comments.service.config import Config
-from unicore.comments.service import db
+from unicore.comments.service import db, app, resource, views  # noqa
 from unicore.comments.service.models import metadata
 
 
@@ -66,6 +67,50 @@ class BaseTestCase(TestCase):
             self.connection.execute(DropTable(metadata.tables['comments'])))
 
         self.successResultOf(self.connection.close())
+
+
+class ViewTestCase(BaseTestCase):
+
+    def setUp(self):
+        super(ViewTestCase, self).setUp()
+        app.db_engine = self.engine
+        app.config = self.config
+
+    def request(self, method, path, body=None, headers=None):
+        if headers is None:
+            headers = {}
+        for name in headers.keys():
+            if not isinstance(headers[name], (tuple, list)):
+                headers[name] = [headers[name]]
+
+        if isinstance(body, dict):
+            body = json.dumps(body)
+            headers['Content-Type'] = ['application/json']
+
+        request = requestMock(path, method, body=body, headers=headers)
+        self.successResultOf(_render(resource, request))
+        return request
+
+    def get(self, path, headers=None):
+        return self.request('GET', path, headers=headers)
+
+    def post(self, path, body=None, headers=None):
+        return self.request('POST', path, body=body, headers=headers)
+
+    def put(self, path, body=None, headers=None):
+        return self.request('PUT', path, body=body, headers=headers)
+
+    def delete(self, path, headers=None):
+        return self.request('DELETE', path, headers=headers)
+
+    def get_json(self, path, headers=None):
+        request = self.get(path, headers=headers)
+        return json.loads(request.getWrittenData())
+
+    def tearDown(self):
+        super(ViewTestCase, self).tearDown()
+        del app.db_engine
+        del app.config
 
 
 __all__ = [

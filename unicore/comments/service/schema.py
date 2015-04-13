@@ -18,8 +18,8 @@ class UUIDType(object):
                 node, '%r is not a valid hexadecimal UUID' % (cstruct, ))
 
     def serialize(self, node, appstruct):
-        if appstruct == colander.null:
-            return 'colander.null'
+        if appstruct in (colander.null, None):
+            return None
         return appstruct.hex
 
     def cstruct_children(self, node, cstruct):
