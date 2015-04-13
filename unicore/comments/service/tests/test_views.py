@@ -309,6 +309,9 @@ class CommentListTestCase(ViewTestCase, ListTests):
             [o['uuid'] for o in data['objects']],
             [o.get('uuid').hex for o in objects_sorted[4:]])
 
+    def test_metadata(self):
+        raise NotImplementedError
+
 
 class FlagListTestCase(ViewTestCase, ListTests):
     base_url = '/flags/'

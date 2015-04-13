@@ -9,9 +9,11 @@ from unicore.comments.service import db, app
 from unicore.comments.service.views.base import (
     make_json_response, deserialize_or_raise)
 from unicore.comments.service.views import pagination
-from unicore.comments.service.models import Comment, BannedUser
+from unicore.comments.service.models import Comment, BannedUser, StreamMetadata
 from unicore.comments.service.schema import Comment as CommentSchema
 from unicore.comments.service.views.filtering import FilterSchema, ALL
+from unicore.comments.service.views.streammetadata import (
+    schema as smd_schema, get_stream_primary_keys)
 
 
 schema = CommentSchema()
@@ -128,6 +130,18 @@ Comment collection resource
 '''
 
 
+def get_stream_metadata(request, connection):
+    primary_key = get_stream_primary_keys(request)
+    if not primary_key or len(primary_key) > 1:
+        return smd_schema.serialize({}).get('metadata')
+
+    primary_key = primary_key.pop()
+    d = StreamMetadata.get_by_pk(
+        connection, app_uuid=primary_key[0], content_uuid=primary_key[1])
+    d.addCallback(lambda o: smd_schema.serialize(o.to_dict()).get('metadata'))
+    return d
+
+
 @app.route('/comments/', methods=['GET'])
 @inlineCallbacks
 def list_comments(request):
@@ -164,6 +178,9 @@ def list_comments(request):
 
         result = yield connection.execute(query)
         result = yield result.fetchall()
+
+        metadata = yield get_stream_metadata(request, connection)
+
     finally:
         yield connection.close()
 
@@ -172,6 +189,7 @@ def list_comments(request):
         'limit': limit,
         'after': after_uuid.hex if after_uuid else None,
         'count': len(result),
-        'objects': [schema_all.serialize(row) for row in result]
+        'objects': [schema_all.serialize(row) for row in result],
+        'metadata': metadata,
     }
     returnValue(make_json_response(request, data))
