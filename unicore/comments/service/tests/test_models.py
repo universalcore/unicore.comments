@@ -44,7 +44,10 @@ banneduser_data = {
 streammetadata_data = {
     'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
     'content_uuid': UUID('f587b74816bb425ab043f1cf30de7abe'),
-    'metadata': {'list': [1, 2, 3], 'dict': {'foo': 'bar'}}
+    'metadata': {
+        'state': 'open',
+        'X-list': [1, 2, 3],
+        'X-dict': {'foo': 'bar'}}
 }
 
 

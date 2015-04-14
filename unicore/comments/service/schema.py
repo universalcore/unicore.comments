@@ -111,6 +111,35 @@ class BannedUser(colander.MappingSchema):
         missing=colander.drop)
 
 
+class KnownStreamMetadata(colander.MappingSchema):
+    state = colander.SchemaNode(
+        colander.String(),
+        missing=colander.drop,
+        default=colander.drop,
+        validator=vlds.stream_state_validator)
+
+    def split(self, value):
+        external = {}
+        known = {}
+        for k, v in (value or {}).iteritems():
+            d = external if k.startswith('X-') else known
+            d[k] = v
+
+        return known, external
+
+    def deserialize(self, value):
+        known, external = self.split(value)
+        value = super(KnownStreamMetadata, self).deserialize(known)
+        value.update(external)
+        return value
+
+    def serialize(self, value):
+        known, external = self.split(value)
+        value = super(KnownStreamMetadata, self).serialize(known)
+        value.update(external)
+        return value
+
+
 class StreamMetadata(colander.MappingSchema):
     app_uuid = colander.SchemaNode(
         UUIDType(),
@@ -118,6 +147,4 @@ class StreamMetadata(colander.MappingSchema):
     content_uuid = colander.SchemaNode(
         UUIDType(),
         validator=vlds.known_uuid_validator('content_uuid'))
-    metadata = colander.SchemaNode(
-        colander.Mapping(unknown='preserve'),
-        missing={})
+    metadata = KnownStreamMetadata()

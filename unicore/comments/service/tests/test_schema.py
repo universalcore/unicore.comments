@@ -6,7 +6,8 @@ import pytz
 import colander
 
 from unicore.comments.service.models import (
-    COMMENT_MAX_LENGTH, COMMENT_CONTENT_TYPES, COMMENT_MODERATION_STATES)
+    COMMENT_MAX_LENGTH, COMMENT_CONTENT_TYPES, COMMENT_MODERATION_STATES,
+    COMMENT_STREAM_STATES)
 from unicore.comments.service.schema import (
     Comment, Flag, BannedUser, StreamMetadata)
 from unicore.comments.service.tests.test_models import (
@@ -164,6 +165,11 @@ class StreamMetadataTestCase(TestCase):
         clean = schema.deserialize(copy)
         self.assertEqual(clean.get('metadata', None), {})
 
+        # dropped because unknown and no X- prefix
+        copy['metadata'] = {'unknown': 'value'}
+        clean = schema.deserialize(copy)
+        self.assertEqual(clean.get('metadata', None), {})
+
     def test_serialize(self):
         schema = StreamMetadata().bind()
         clean = schema.serialize(streammetadata_model_data)
@@ -173,6 +179,7 @@ class StreamMetadataTestCase(TestCase):
 class ValidatorTestCase(TestCase):
     schema_flag = Flag().bind()
     schema_comment = Comment().bind()
+    schema_streammetadata = StreamMetadata().bind()
 
     def setUp(self):
         self.data_flag = flag_data.copy()
@@ -235,3 +242,12 @@ class ValidatorTestCase(TestCase):
         self.assertRaisesRegexp(
             colander.Invalid, 'is not one of %s' % states,
             self.schema_comment.deserialize, self.data_comment)
+
+    def test_stream_state_validator(self):
+        smd_data = streammetadata_data.copy()
+        smd_data['metadata'] = smd_data['metadata'].copy()
+        smd_data['metadata']['state'] = 'invalid'
+        states = ', '.join(COMMENT_STREAM_STATES)
+        self.assertRaisesRegexp(
+            colander.Invalid, 'is not one of %s' % states,
+            self.schema_streammetadata.deserialize, smd_data)

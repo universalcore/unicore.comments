@@ -450,7 +450,7 @@ class StreamMetadataListTestCase(ViewTestCase, ListTests):
         content_uuid_known = self.objects[0].get('content_uuid').hex
         content_uuid_unknown = uuid.uuid4().hex
         app_uuid_known = self.objects[0].get('app_uuid').hex
-        new_metadata = {'metadata': {'new': 'data'}}
+        new_metadata = {'metadata': {'X-new': 'data'}}
 
         # only objects in db
         request = self.put('%s?content_uuid=%s&app_uuid=%s' % (
@@ -478,7 +478,7 @@ class StreamMetadataListTestCase(ViewTestCase, ListTests):
             'objects': [new_metadata]})
 
     def test_update_unbounded_list(self):
-        new_metadata = {'metadata': {'new': 'data'}}
+        new_metadata = {'metadata': {'X-new': 'data'}}
         request = self.put(self.base_url, new_metadata)
         self.assertEqual(json.loads(request.getWrittenData()), {
             'updated': 10,

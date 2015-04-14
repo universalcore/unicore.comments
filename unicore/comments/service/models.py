@@ -16,6 +16,7 @@ COMMENT_MODERATION_STATES = (
     (u'removed_by_moderator', u'Removed by moderator'),
     (u'removed_by_community', u'Removed by community'),
     (u'removed_for_profanity', u'Removed for profanity'))
+COMMENT_STREAM_STATES = (u'open', u'closed', u'disabled')
 
 FLAG_TABLE_NAME = 'flags'
 
