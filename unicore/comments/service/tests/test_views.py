@@ -179,6 +179,20 @@ class CommentCRUDTestCase(ViewTestCase, CRUDTests):
         request = self.post(self.base_url, comment_data)
         self.assertEqual(request.code, 403)
 
+        # check that comment is rejected when stream is not open
+        metadata = StreamMetadata(self.connection, streammetadata_data)
+        self.successResultOf(metadata.insert())
+        self.successResultOf(user.delete())  # remove ban
+
+        request = self.post(self.base_url, comment_data)
+        self.assertEqual(request.code, 201)
+
+        for state in ('closed', 'disabled'):
+            metadata.set('metadata', {'state': state})
+            self.successResultOf(metadata.update())
+            request = self.post(self.base_url, comment_data)
+            self.assertEqual(request.code, 403)
+
 
 class FlagCRUDTestCase(ViewTestCase, CRUDTests):
     base_url = '/flags/'
