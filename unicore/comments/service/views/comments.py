@@ -9,13 +9,16 @@ from unicore.comments.service import db, app
 from unicore.comments.service.views.base import (
     make_json_response, deserialize_or_raise)
 from unicore.comments.service.views import pagination
-from unicore.comments.service.models import Comment, BannedUser
+from unicore.comments.service.models import Comment, BannedUser, StreamMetadata
 from unicore.comments.service.schema import Comment as CommentSchema
 from unicore.comments.service.views.filtering import FilterSchema, ALL
+from unicore.comments.service.views.streammetadata import (
+    schema as smd_schema, get_stream_primary_keys)
 
 
 schema = CommentSchema()
 schema_all = CommentSchema(include_all=True)
+schema_metadata = smd_schema['metadata']
 comment_filters = FilterSchema.from_schema(schema_all, {
     'content_uuid': ALL,
     'content_type': ALL,
@@ -44,6 +47,25 @@ def is_banned_user(connection, user_uuid, app_uuid):
     return d
 
 
+def get_stream_metadata(connection, request=None, app_uuid=None,
+                        content_uuid=None):
+    if request:
+        primary_key = get_stream_primary_keys(request)
+        if not primary_key or len(primary_key) > 1:
+            return {}
+        app_uuid, content_uuid = primary_key.pop()
+
+    elif not (app_uuid and content_uuid):
+        raise ValueError(
+            'either request must be provided, or '
+            'app_uuid and content_uuid must be provided')
+
+    d = StreamMetadata.get_by_pk(
+        connection, app_uuid=app_uuid, content_uuid=content_uuid)
+    d.addCallback(lambda o: o.get('metadata') if o else {})
+    return d
+
+
 '''
 Comment resource
 '''
@@ -59,6 +81,12 @@ def create_comment(request, connection):
         connection, data['user_uuid'], data['app_uuid'])
     if is_banned:
         raise Forbidden('user is banned from commenting')
+
+    metadata = yield get_stream_metadata(
+        connection, app_uuid=data['app_uuid'],
+        content_uuid=data['content_uuid'])
+    if metadata.get('state', 'open') != 'open':
+        raise Forbidden('comment stream is not open')
 
     comment = Comment(connection, data)
     yield comment.insert()
@@ -164,6 +192,9 @@ def list_comments(request):
 
         result = yield connection.execute(query)
         result = yield result.fetchall()
+
+        metadata = yield get_stream_metadata(connection, request=request)
+
     finally:
         yield connection.close()
 
@@ -172,6 +203,7 @@ def list_comments(request):
         'limit': limit,
         'after': after_uuid.hex if after_uuid else None,
         'count': len(result),
-        'objects': [schema_all.serialize(row) for row in result]
+        'objects': [schema_all.serialize(row) for row in result],
+        'metadata': schema_metadata.serialize(metadata),
     }
     returnValue(make_json_response(request, data))

@@ -6,7 +6,8 @@ import colander
 from unicore.comments.service.models import (
     COMMENT_MAX_LENGTH,
     COMMENT_CONTENT_TYPES,
-    COMMENT_MODERATION_STATES)
+    COMMENT_MODERATION_STATES,
+    COMMENT_STREAM_STATES)
 
 
 # ISO 639 3-letter code + ISO 3166-1 alpha-2
@@ -56,3 +57,4 @@ content_type_validator = colander.OneOf(COMMENT_CONTENT_TYPES)
 content_url_validator = colander.url
 moderation_state_validator = colander.OneOf(
     map(lambda t: t[0], COMMENT_MODERATION_STATES))
+stream_state_validator = colander.OneOf(COMMENT_STREAM_STATES)

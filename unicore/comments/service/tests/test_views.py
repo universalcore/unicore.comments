@@ -8,58 +8,15 @@ from sqlalchemy import and_
 from sqlalchemy.inspection import inspect
 from sqlalchemy.sql.expression import exists
 
-from unicore.comments.service import app, resource, views  # noqa
-from unicore.comments.service.tests import BaseTestCase, _render, requestMock
-from unicore.comments.service.models import Comment, Flag, BannedUser
+from unicore.comments.service.models import (
+    Comment, Flag, BannedUser, StreamMetadata)
+from unicore.comments.service.tests import ViewTestCase
 from unicore.comments.service.tests.test_schema import (
-    comment_data, flag_data, banneduser_data)
+    comment_data, flag_data, banneduser_data, streammetadata_data)
 from unicore.comments.service.schema import (
     Comment as CommentSchema, Flag as FlagSchema,
-    BannedUser as BannedUserSchema)
-
-
-class ViewTestCase(BaseTestCase):
-
-    def setUp(self):
-        super(ViewTestCase, self).setUp()
-        app.db_engine = self.engine
-        app.config = self.config
-
-    def request(self, method, path, body=None, headers=None):
-        if headers is None:
-            headers = {}
-        for name in headers.keys():
-            if not isinstance(headers[name], (tuple, list)):
-                headers[name] = [headers[name]]
-
-        if isinstance(body, dict):
-            body = json.dumps(body)
-            headers['Content-Type'] = ['application/json']
-
-        request = requestMock(path, method, body=body, headers=headers)
-        self.successResultOf(_render(resource, request))
-        return request
-
-    def get(self, path, headers=None):
-        return self.request('GET', path, headers=headers)
-
-    def post(self, path, body=None, headers=None):
-        return self.request('POST', path, body=body, headers=headers)
-
-    def put(self, path, body=None, headers=None):
-        return self.request('PUT', path, body=body, headers=headers)
-
-    def delete(self, path, headers=None):
-        return self.request('DELETE', path, headers=headers)
-
-    def get_json(self, path, headers=None):
-        request = self.get(path, headers=headers)
-        return json.loads(request.getWrittenData())
-
-    def tearDown(self):
-        super(ViewTestCase, self).tearDown()
-        del app.db_engine
-        del app.config
+    BannedUser as BannedUserSchema,
+    StreamMetadata as StreamMetadataSchema)
 
 
 class CRUDTests(object):
@@ -222,6 +179,20 @@ class CommentCRUDTestCase(ViewTestCase, CRUDTests):
         request = self.post(self.base_url, comment_data)
         self.assertEqual(request.code, 403)
 
+        # check that comment is rejected when stream is not open
+        metadata = StreamMetadata(self.connection, streammetadata_data)
+        self.successResultOf(metadata.insert())
+        self.successResultOf(user.delete())  # remove ban
+
+        request = self.post(self.base_url, comment_data)
+        self.assertEqual(request.code, 201)
+
+        for state in ('closed', 'disabled'):
+            metadata.set('metadata', {'state': state})
+            self.successResultOf(metadata.update())
+            request = self.post(self.base_url, comment_data)
+            self.assertEqual(request.code, 403)
+
 
 class FlagCRUDTestCase(ViewTestCase, CRUDTests):
     base_url = '/flags/'
@@ -246,7 +217,10 @@ class FlagCRUDTestCase(ViewTestCase, CRUDTests):
 
         # check that inserting duplicate fails
         request = self.post(self.base_url, self.instance_data)
+        comment = self.successResultOf(Comment.get_by_pk(
+            self.connection, uuid=self.comment.get('uuid')))
         self.assertEqual(request.code, 200)
+        self.assertEqual(comment.get('flag_count'), 1)
 
         # check that inserting flag without existing comment fails
         data = self.instance_data.copy()
@@ -269,37 +243,55 @@ class BannedUserCRUDTestCase(ViewTestCase, CRUDTests):
     model_class = BannedUser
     instance_data = banneduser_data
     schema = BannedUserSchema().bind()
+    autogenerate_pk_fields = False
 
     def test_update(self):
         raise SkipTest('No update endpoint implemented')
 
-    def test_delete_all_apps(self):
-        serialized_data = {
-            'count': 5,
-            'objects': [],
-        }
-        for i in range(6):
-            data = self.instance_data.copy()
-            # insert a user that won't be deleted
-            if i == 0:
-                data['user_uuid'] = uuid.uuid4().hex
-            data['app_uuid'] = uuid.uuid4().hex
-            user = BannedUser(self.connection, data)
-            self.successResultOf(user.insert())
-            if i == 0:
-                continue
-            user_serialized = self.schema.serialize(user.to_dict())
-            serialized_data['objects'].append(user_serialized)
 
-        request = self.delete(
-            '/bannedusers/%(user_uuid)s/' % self.instance_data)
-        response_data = json.loads(request.getWrittenData())
-        count = self.successResultOf(
-            self.connection.execute(BannedUser.__table__.count()))
-        count = self.successResultOf(count.scalar())
+class StreamMetadataCRUDTestCase(ViewTestCase, CRUDTests):
+    base_url = '/streammetadata/'
+    detail_url = '/streammetadata/%(app_uuid)s/%(content_uuid)s/'
+    model_class = StreamMetadata
+    instance_data = streammetadata_data
+    schema = StreamMetadataSchema().bind()
 
-        self.assertEqual(response_data, serialized_data)
-        self.assertEqual(count, 1)
+    def test_create(self):
+        raise SkipTest('No create endpoint implemented')
+
+    def test_delete(self):
+        raise SkipTest('No delete endpoint implemented')
+
+    def test_read(self):
+        request = self.get(self.get_detail_url(self.instance_data))
+        self.assertEqual(request.code, 200)
+        self.assertEqual(json.loads(request.getWrittenData())['metadata'], {})
+
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
+        request = self.get(self.get_detail_url(self.instance_data))
+
+        self.assertEqual(request.code, 200)
+        self.assertEqual(
+            self.schema.deserialize(self.instance_data),
+            self.schema.deserialize(json.loads(request.getWrittenData())))
+
+    def test_update(self):
+        data = self.instance_data.copy()
+        request = self.put(self.get_detail_url(data), data)
+
+        self.assertEqual(request.code, 200)
+        self.assertEqual(
+            self.schema.deserialize(data),
+            self.schema.deserialize(json.loads(request.getWrittenData())))
+
+        data['metadata'] = {'something': 'else'}
+        request = self.put(self.get_detail_url(data), data)
+
+        self.assertEqual(request.code, 200)
+        self.assertEqual(
+            self.schema.deserialize(data),
+            self.schema.deserialize(json.loads(request.getWrittenData())))
 
 
 class CommentListTestCase(ViewTestCase, ListTests):
@@ -331,6 +323,27 @@ class CommentListTestCase(ViewTestCase, ListTests):
             [o['uuid'] for o in data['objects']],
             [o.get('uuid').hex for o in objects_sorted[4:]])
 
+    def test_metadata(self):
+        app_uuid = self.objects[0].get('app_uuid').hex
+        content_uuid = self.objects[0].get('content_uuid').hex
+
+        for url in ('/comments/',
+                    '/comments/?app_uuid=%s&content_uuid=%s' % (
+                        app_uuid, content_uuid),
+                    '/comments/?app_uuid=%s&content_uuid_in=%s,%s' % (
+                        app_uuid, content_uuid, uuid.uuid4().hex)):
+            data = self.get_json(url)
+            self.assertIn('metadata', data)
+            self.assertEqual(data['metadata'], {})
+
+        metadata = StreamMetadata(self.connection, streammetadata_data)
+        self.successResultOf(metadata.insert())
+
+        data = self.get_json('/comments/?app_uuid=%s&content_uuid=%s' % (
+            app_uuid, content_uuid))
+        self.assertIn('metadata', data)
+        self.assertEqual(data['metadata'], metadata.get('metadata'))
+
 
 class FlagListTestCase(ViewTestCase, ListTests):
     base_url = '/flags/'
@@ -350,3 +363,138 @@ class FlagListTestCase(ViewTestCase, ListTests):
             obj = Flag(self.connection, data)
             self.successResultOf(obj.insert())
             self.objects.append(obj)
+
+
+class BannedUserListTestCase(ViewTestCase):
+
+    def setUp(self):
+        super(BannedUserListTestCase, self).setUp()
+
+        data = banneduser_data.copy()
+        self.objects = []
+        for i in range(10):
+            data['app_uuid'] = uuid.uuid4().hex if i != 0 else None
+            user = BannedUser(self.connection, data)
+            self.successResultOf(user.insert())
+            self.objects.append(user)
+
+    def test_delete_for_all_apps(self):
+        # insert a user that won't be deleted
+        data = banneduser_data.copy()
+        data['user_uuid'] = uuid.uuid4().hex
+        user = BannedUser(self.connection, data)
+        self.successResultOf(user.insert())
+
+        schema = BannedUserSchema()
+        serialized_data = {
+            'count': 10,
+            'objects': [schema.serialize(o.to_dict()) for o in self.objects]
+        }
+
+        request = self.delete(
+            '/bannedusers/%(user_uuid)s/' % banneduser_data)
+        response_data = json.loads(request.getWrittenData())
+        count = self.successResultOf(
+            self.connection.execute(BannedUser.__table__.count()))
+        count = self.successResultOf(count.scalar())
+
+        self.assertEqual(response_data, serialized_data)
+        self.assertEqual(count, 1)
+
+
+class StreamMetadataListTestCase(ViewTestCase, ListTests):
+    base_url = '/streammetadata/'
+
+    def setUp(self):
+        super(StreamMetadataListTestCase, self).setUp()
+
+        data = streammetadata_data
+        self.objects = []
+        for i in range(5):
+            data['content_uuid'] = uuid.uuid4().hex
+            metadata = StreamMetadata(self.connection, data)
+            self.successResultOf(metadata.insert())
+            self.objects.append(metadata)
+
+        for i in range(5):
+            data['app_uuid'] = uuid.uuid4().hex
+            metadata = StreamMetadata(self.connection, data)
+            self.successResultOf(metadata.insert())
+            self.objects.append(metadata)
+
+    def test_ordering(self):
+        raise SkipTest('No ordering')
+
+    def test_view_bounded_list(self):
+        content_uuid_known = self.objects[0].get('content_uuid').hex
+        content_uuid_unknown = uuid.uuid4().hex
+        app_uuid_known = self.objects[0].get('app_uuid').hex
+        schema = StreamMetadataSchema()
+
+        # only objects in db
+        data = self.get_json('%s?content_uuid=%s&app_uuid=%s' % (
+            self.base_url, content_uuid_known, app_uuid_known))
+        self.assertEqual(data, {
+            'count': 1,
+            'objects': [schema.serialize(self.objects[0].to_dict())]})
+
+        # only objects not in db
+        data = self.get_json('%s?content_uuid=%s&app_uuid=%s' % (
+            self.base_url, content_uuid_unknown, app_uuid_known))
+        self.assertEqual(data, {
+            'count': 1,
+            'objects': [{
+                'app_uuid': app_uuid_known,
+                'content_uuid': content_uuid_unknown,
+                'metadata': {}}]})
+
+        # one in db, one not in db
+        data = self.get_json('%s?content_uuid_in=%s,%s&app_uuid=%s' % (
+            self.base_url, content_uuid_known, content_uuid_unknown,
+            app_uuid_known))
+        self.assertEqual(data, {
+            'count': 2,
+            'objects': [schema.serialize(self.objects[0].to_dict()), {
+                'app_uuid': app_uuid_known,
+                'content_uuid': content_uuid_unknown,
+                'metadata': {}}]
+            })
+
+    def test_update_bounded_list(self):
+        content_uuid_known = self.objects[0].get('content_uuid').hex
+        content_uuid_unknown = uuid.uuid4().hex
+        app_uuid_known = self.objects[0].get('app_uuid').hex
+        new_metadata = {'metadata': {'X-new': 'data'}}
+
+        # only objects in db
+        request = self.put('%s?content_uuid=%s&app_uuid=%s' % (
+            self.base_url, content_uuid_known, app_uuid_known), new_metadata)
+        self.assertEqual(json.loads(request.getWrittenData()), {
+            'updated': 1,
+            'count': 1,
+            'objects': [new_metadata]})
+
+        # only objects not in db
+        request = self.put('%s?content_uuid=%s&app_uuid=%s' % (
+            self.base_url, content_uuid_unknown, app_uuid_known), new_metadata)
+        self.assertEqual(json.loads(request.getWrittenData()), {
+            'updated': 1,
+            'count': 1,
+            'objects': [new_metadata]})
+
+        # one in db, one not in db
+        request = self.put('%s?content_uuid_in=%s,%s&app_uuid=%s' % (
+            self.base_url, content_uuid_known, content_uuid_unknown,
+            app_uuid_known), new_metadata)
+        self.assertEqual(json.loads(request.getWrittenData()), {
+            'updated': 2,
+            'count': 1,
+            'objects': [new_metadata]})
+
+    def test_update_unbounded_list(self):
+        new_metadata = {'metadata': {'X-new': 'data'}}
+        request = self.put(self.base_url, new_metadata)
+        self.assertEqual(json.loads(request.getWrittenData()), {
+            'updated': 10,
+            'count': 1,
+            'objects': [new_metadata]})

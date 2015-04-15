@@ -9,7 +9,8 @@ from sqlalchemy.inspection import inspect
 
 from unicore.comments.service.tests import (BaseTestCase, mk_alembic_config,
                                             mk_config)
-from unicore.comments.service.models import Comment, Flag, BannedUser
+from unicore.comments.service.models import (Comment, Flag, BannedUser,
+                                             StreamMetadata)
 
 
 comment_data = {
@@ -39,6 +40,14 @@ banneduser_data = {
     'user_uuid': UUID('63f058d5de5143ecb455382bf654100c'),
     'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
     'created': datetime.now(pytz.utc),
+}
+streammetadata_data = {
+    'app_uuid': UUID('bbc0035128b34ed48bdacab1799087c5'),
+    'content_uuid': UUID('f587b74816bb425ab043f1cf30de7abe'),
+    'metadata': {
+        'state': 'open',
+        'X-list': [1, 2, 3],
+        'X-dict': {'foo': 'bar'}}
 }
 
 
@@ -207,3 +216,23 @@ class BannerUserTestCase(BaseTestCase, ModelTests):
         data['id'] = 1
         obj = self.model_class(self.connection, data)
         self.assertEqual(data, obj.to_dict())
+
+
+class StreamMetadataTestCase(BaseTestCase, ModelTests):
+    model_class = StreamMetadata
+    instance_data = streammetadata_data
+
+    def test_exists(self):
+        no_json_field = self.instance_data.copy()
+        del no_json_field['metadata']
+
+        does_exist = self.successResultOf(
+            self.model_class.exists(self.connection, **no_json_field))
+        self.assertFalse(does_exist)
+
+        obj = self.model_class(self.connection, self.instance_data)
+        self.successResultOf(obj.insert())
+
+        does_exist = self.successResultOf(
+            self.model_class.exists(self.connection, **no_json_field))
+        self.assertTrue(does_exist)
