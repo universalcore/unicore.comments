@@ -1,13 +1,9 @@
 import json
 
 import colander
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import NotFound, BadRequest, Forbidden
 
 from unicore.comments.service import app
-
-
-class InvalidJSONError(Exception):
-    pass
 
 
 def deserialize_or_raise(schema, req):
@@ -18,7 +14,9 @@ def deserialize_or_raise(schema, req):
         return schema.deserialize(data)
 
     except (TypeError, ValueError):
-        raise InvalidJSONError('Not valid JSON')
+        raise BadRequest(
+            ('NOT_JSON', 'Not valid JSON. Is Content-Type '
+             'set to application/json?'))
 
 
 def make_json_response(request, data, schema=None):
@@ -28,25 +26,31 @@ def make_json_response(request, data, schema=None):
     return json.dumps(data)
 
 
+def make_error_response(request, status_code, error_code,
+                        error_dict=None, error_message=None):
+    request.setResponseCode(status_code)
+    return make_json_response(request, {
+        'status': 'error',
+        'error_code': error_code,
+        'error_dict': error_dict,
+        'error_message': error_message,
+    })
+
+
 @app.handle_errors(colander.Invalid)
 def bad_fields(request, failure):
-    request.setResponseCode(400)
-    return make_json_response(request, {
-        'status': 'error',
-        'error_dict': failure.value.asdict()})
+    return make_error_response(
+        request, 400, 'BAD_FIELDS', error_dict=failure.value.asdict())
 
 
-@app.handle_errors(InvalidJSONError)
-def bad_json(request, failure):
-    request.setResponseCode(400)
-    return make_json_response(request, {
-        'status': 'error',
-        'error_message': unicode(failure.value)})
+@app.handle_errors(NotFound, BadRequest, Forbidden)
+def bad_request(request, failure):
+    e = failure.value
+    if isinstance(e.description, (list, tuple)):
+        error_code, error_message = e.description
+    else:
+        error_code = e.name.upper().replace(' ', '_')
+        error_message = e.description
 
-
-@app.handle_errors(NotFound)
-def not_found(request, failure):
-    request.setResponseCode(404)
-    return make_json_response(request, {
-        'status': 'error',
-        'error_message': 'Resource not found'})
+    return make_error_response(
+        request, e.code, error_code, error_message=error_message)
