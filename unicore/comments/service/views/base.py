@@ -44,7 +44,7 @@ def bad_fields(request, failure):
 
 
 @app.handle_errors(NotFound, BadRequest, Forbidden)
-def bad_request(request, failure):
+def werkzeug_exception(request, failure):
     e = failure.value
     if isinstance(e.description, (list, tuple)):
         error_code, error_message = e.description
