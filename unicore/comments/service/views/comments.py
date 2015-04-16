@@ -80,13 +80,13 @@ def create_comment(request, connection):
     is_banned = yield is_banned_user(
         connection, data['user_uuid'], data['app_uuid'])
     if is_banned:
-        raise Forbidden('user is banned from commenting')
+        raise Forbidden(('USER_BANNED', 'user is banned from commenting'))
 
     metadata = yield get_stream_metadata(
         connection, app_uuid=data['app_uuid'],
         content_uuid=data['content_uuid'])
     if metadata.get('state', 'open') != 'open':
-        raise Forbidden('comment stream is not open')
+        raise Forbidden(('STREAM_NOT_OPEN', 'comment stream is not open'))
 
     comment = Comment(connection, data)
     yield comment.insert()
@@ -175,7 +175,8 @@ def list_comments(request):
         after_uuid = request.args.get('after', [None])[0]
         after_uuid = UUID(after_uuid) if after_uuid else None
     except ValueError:
-        raise BadRequest('after is not a valid hexadecimal UUID')
+        raise BadRequest(
+            ('BAD_PARAM', 'after is not a valid hexadecimal UUID'))
 
     try:
         connection = yield app.db_engine.connect()
