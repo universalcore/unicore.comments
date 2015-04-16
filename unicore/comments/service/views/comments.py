@@ -1,17 +1,19 @@
 from uuid import UUID
 
+import colander
 from sqlalchemy import or_, and_
-from sqlalchemy.sql import exists
+from sqlalchemy.sql import exists, select
 from twisted.internet.defer import inlineCallbacks, returnValue
-from werkzeug.exceptions import NotFound, BadRequest, Forbidden
+from werkzeug.exceptions import NotFound, Forbidden
 
 from unicore.comments.service import db, app
 from unicore.comments.service.views.base import (
     make_json_response, deserialize_or_raise)
 from unicore.comments.service.views import pagination
 from unicore.comments.service.models import Comment, BannedUser, StreamMetadata
-from unicore.comments.service.schema import Comment as CommentSchema
-from unicore.comments.service.views.filtering import FilterSchema, ALL
+from unicore.comments.service.schema import Comment as CommentSchema, UUIDType
+from unicore.comments.service.views.filtering import (
+    FilterSchema, ALL)
 from unicore.comments.service.views.streammetadata import (
     schema as smd_schema, get_stream_primary_keys)
 
@@ -31,6 +33,9 @@ comment_filters = FilterSchema.from_schema(schema_all, {
     'moderation_state': ALL,
     'flag_count': ALL
 })
+extra_filters = FilterSchema(children=[
+    colander.SchemaNode(UUIDType(), name='before'),
+    colander.SchemaNode(UUIDType(), name='after')])
 
 
 def is_banned_user(connection, user_uuid, app_uuid):
@@ -156,44 +161,60 @@ Comment collection resource
 '''
 
 
+def apply_extra_filters(extra, query):
+    if not extra:
+        return query
+
+    cols = Comment.__table__.c
+    boundary_uuid = extra.get('after', extra.get('before'))
+    boundary_dt = select([cols.submit_datetime]) \
+        .where(cols.uuid == boundary_uuid) \
+        .as_scalar()
+
+    # NOTE: orders on submit_datetime, then uuid
+    # this is to ensure an absolute ordering
+    if 'after' in extra:
+        query = query.where(or_(
+            cols.submit_datetime > boundary_dt,
+            and_(
+                cols.submit_datetime == boundary_dt,
+                cols.uuid > boundary_uuid
+            ))) \
+            .order_by(None) \
+            .order_by(cols.submit_datetime, cols.uuid)
+    else:
+        query = query.where(or_(
+            cols.submit_datetime < boundary_dt,
+            and_(
+                cols.submit_datetime == boundary_dt,
+                cols.uuid < boundary_uuid
+            ))) \
+            .order_by(None) \
+            .order_by(cols.submit_datetime.desc(), cols.uuid.desc())
+
+    return query
+
+
 @app.route('/comments/', methods=['GET'])
 @inlineCallbacks
 def list_comments(request):
     columns = Comment.__table__.c
     filter_expr = comment_filters.get_filter_expression(request.args, columns)
+    extra = extra_filters.convert_lists(request.args)
+    extra = extra_filters.deserialize(extra)
 
-    # NOTE: orders on submit_datetime, then uuid
-    # this is to ensure an absolute ordering
     query = Comment.__table__ \
         .select() \
         .where(filter_expr) \
         .order_by(columns.submit_datetime.desc(),
-                  columns.uuid)
+                  columns.uuid.desc())
+    query = apply_extra_filters(extra, query)
     query, limit, offset = pagination.paginate(request.args, query)
 
     try:
-        after_uuid = request.args.get('after', [None])[0]
-        after_uuid = UUID(after_uuid) if after_uuid else None
-    except ValueError:
-        raise BadRequest(
-            ('BAD_PARAM', 'after is not a valid hexadecimal UUID'))
-
-    try:
         connection = yield app.db_engine.connect()
-
-        if after_uuid:
-            last = yield Comment.get_by_pk(connection, uuid=after_uuid)
-            if last is not None:
-                query = query.where(or_(
-                    columns.submit_datetime > last.get('submit_datetime'),
-                    and_(
-                        columns.submit_datetime == last.get('submit_datetime'),
-                        columns.uuid > last.get('uuid'))
-                    ))
-
         result = yield connection.execute(query)
         result = yield result.fetchall()
-
         metadata = yield get_stream_metadata(connection, request=request)
 
     finally:
@@ -202,9 +223,10 @@ def list_comments(request):
     data = {
         'offset': offset,
         'limit': limit,
-        'after': after_uuid.hex if after_uuid else None,
         'count': len(result),
         'objects': [schema_all.serialize(row) for row in result],
         'metadata': schema_metadata.serialize(metadata),
     }
+    if 'after' in extra:
+        data['objects'] = list(reversed(data['objects']))
     returnValue(make_json_response(request, data))
