@@ -2,7 +2,7 @@ from uuid import UUID
 
 import colander
 from sqlalchemy import or_, and_
-from sqlalchemy.sql import exists, select
+from sqlalchemy.sql import exists, select, func
 from twisted.internet.defer import inlineCallbacks, returnValue
 from werkzeug.exceptions import NotFound, Forbidden
 
@@ -165,11 +165,13 @@ def apply_extra_filters(extra, query):
     if not extra:
         return query
 
-    cols = Comment.__table__.c
     boundary_uuid = extra.get('after', extra.get('before'))
-    boundary_dt = select([cols.submit_datetime]) \
-        .where(cols.uuid == boundary_uuid) \
+    boundary_dt = select([Comment.__table__.c.submit_datetime]) \
+        .where(Comment.__table__.c.uuid == boundary_uuid) \
         .as_scalar()
+
+    cols = query.froms[0].c
+    query = query.order_by(None)
 
     # NOTE: orders on submit_datetime, then uuid
     # this is to ensure an absolute ordering
@@ -180,7 +182,6 @@ def apply_extra_filters(extra, query):
                 cols.submit_datetime == boundary_dt,
                 cols.uuid > boundary_uuid
             ))) \
-            .order_by(None) \
             .order_by(cols.submit_datetime, cols.uuid)
     else:
         query = query.where(or_(
@@ -189,7 +190,6 @@ def apply_extra_filters(extra, query):
                 cols.submit_datetime == boundary_dt,
                 cols.uuid < boundary_uuid
             ))) \
-            .order_by(None) \
             .order_by(cols.submit_datetime.desc(), cols.uuid.desc())
 
     return query
@@ -203,11 +203,18 @@ def list_comments(request):
     extra = extra_filters.convert_lists(request.args)
     extra = extra_filters.deserialize(extra)
 
-    query = Comment.__table__ \
+    query_all = Comment.__table__ \
         .select() \
-        .where(filter_expr) \
-        .order_by(columns.submit_datetime.desc(),
-                  columns.uuid.desc())
+        .where(filter_expr)
+    query = query_all \
+        .column(func.row_number()
+                .over(order_by=(
+                    columns.submit_datetime.desc(),
+                    columns.uuid.desc()))
+                .label('row_number')) \
+        .alias() \
+        .select() \
+        .order_by('row_number')
     query = apply_extra_filters(extra, query)
     query, limit, offset = pagination.paginate(request.args, query)
 
@@ -215,18 +222,20 @@ def list_comments(request):
         connection = yield app.db_engine.connect()
         result = yield connection.execute(query)
         result = yield result.fetchall()
+        total = yield connection.execute(query_all.alias().count())
+        total = yield total.scalar()
         metadata = yield get_stream_metadata(connection, request=request)
 
     finally:
         yield connection.close()
 
     data = {
-        'offset': offset,
-        'limit': limit,
+        'total': total,
         'count': len(result),
-        'objects': [schema_all.serialize(row) for row in result],
+        'objects': [schema_all.serialize(row) for row in
+                    sorted(result, key=lambda r: r['row_number'])],
         'metadata': schema_metadata.serialize(metadata),
+        'start': result[0]['row_number'] if result else None,
+        'end': result[-1]['row_number'] if result else None
     }
-    if 'after' in extra:
-        data['objects'] = list(reversed(data['objects']))
     returnValue(make_json_response(request, data))
