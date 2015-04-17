@@ -122,20 +122,14 @@ class ListTests(object):
 
     def test_pagination(self):
         data = self.get_json(self.base_url)
-        self.assertEqual(data['limit'], 50)
-        self.assertEqual(data['offset'], 0)
         self.assertEqual(data['count'], 10)
         self.assertEqual(len(data['objects']), 10)
 
         data = self.get_json('%s?limit=10&offset=3' % self.base_url)
-        self.assertEqual(data['limit'], 10)
-        self.assertEqual(data['offset'], 3)
         self.assertEqual(data['count'], 7)
         self.assertEqual(len(data['objects']), 7)
 
         data = self.get_json('%s?limit=5&offset=2' % self.base_url)
-        self.assertEqual(data['limit'], 5)
-        self.assertEqual(data['offset'], 2)
         self.assertEqual(data['count'], 5)
         self.assertEqual(len(data['objects']), 5)
 
@@ -309,19 +303,35 @@ class CommentListTestCase(ViewTestCase, ListTests):
             self.successResultOf(obj.insert())
             self.objects.append(obj)
 
-    def test_after(self):
-        objects_sorted = sorted(self.objects, key=lambda o: o.get('uuid').hex)
+    def test_before_after(self):
+
+        def check_before_and_after(objects):
+            delim_obj = objects_sorted[4]
+            data = self.get_json(
+                '/comments/?after=%s&limit=2' % delim_obj.get('uuid'))
+            self.assertEqual(
+                [o.get('uuid').hex for o in objects[6:4:-1]],
+                [o['uuid'] for o in data['objects']])
+
+            data = self.get_json(
+                '/comments/?before=%s&limit=2' % delim_obj.get('uuid'))
+            self.assertEqual(
+                [o.get('uuid').hex for o in objects[3:1:-1]],
+                [o['uuid'] for o in data['objects']])
+
+        objects_sorted = sorted(
+            self.objects,
+            key=lambda o: (o.get('submit_datetime'), o.get('uuid').hex))
+        check_before_and_after(objects_sorted)
+
+        objects_sorted = sorted(
+            self.objects, key=lambda o: o.get('uuid').hex)
         dt = datetime.now(pytz.utc)
         # fix submit_datetime
         for obj in self.objects:
             obj.set('submit_datetime', dt)
             self.successResultOf(obj.update())
-        after_obj = objects_sorted[3]
-        data = self.get_json('/comments/?after=%s' % after_obj.get('uuid'))
-
-        self.assertEqual(
-            [o['uuid'] for o in data['objects']],
-            [o.get('uuid').hex for o in objects_sorted[4:]])
+        check_before_and_after(objects_sorted)
 
     def test_metadata(self):
         app_uuid = self.objects[0].get('app_uuid').hex
